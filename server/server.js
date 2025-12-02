@@ -7,6 +7,8 @@ const nodeFetch = require('node-fetch');
 const expressWs = require('express-ws');
 const { v4: uuidv4 } = require('uuid');
 const twilio = require('twilio');
+const WebSocket = require('ws');
+const url = require('url');
 
 // Load environment variables
 const envPath = process.env.NODE_ENV === 'production'
@@ -28,7 +30,7 @@ const { ElevenLabsStreamHandler } = require('./services/elevenLabsStreamHandler.
 const AdminService = require('./services/adminService.js');
 const WalletService = require('./services/walletService.js');
 const walletService = new WalletService(mysqlPool);
-
+const wss = new WebSocket.Server({ noServer: true });
 // Init server
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -3182,7 +3184,95 @@ app.get("/db-conn-status", async (req, res) => {
     res.json({ success: false, error: error.message || "No message" });
   }
 });
+server.on('upgrade', (request, socket, head) => {
+  const pathname = url.parse(request.url).pathname;
+  
+  console.log('🎯 ========== WEBSOCKET CONNECTION ATTEMPT ==========');
+  console.log('🔌 WebSocket upgrade request received:', {
+    url: request.url,
+    pathname: pathname,
+    headers: request.headers
+  });
 
+  // Route based on pathname
+  if (pathname === '/api/test-ws') {
+    // Test WebSocket endpoint
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      console.log('✅ Test WebSocket connected');
+      
+      ws.on('message', (message) => {
+        console.log('📨 Received message:', message.toString());
+        ws.send(`Echo: ${message}`);
+      });
+      
+      ws.on('close', () => {
+        console.log('👋 Test WebSocket closed');
+      });
+      
+      ws.on('error', (error) => {
+        console.error('🚨 Test WebSocket error:', error);
+      });
+      
+      // Send initial message
+      ws.send(JSON.stringify({ type: 'connected', message: 'Test WebSocket connected successfully!' }));
+    });
+  } 
+  else if (pathname.startsWith('/api/call')) {
+    // Your call WebSocket endpoint
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      console.log('✅ Call WebSocket connected');
+      
+      // Get callId from query params
+      const queryParams = url.parse(request.url, true).query;
+      const callId = queryParams.callId;
+      
+      if (!callId) {
+        console.error('❌ No callId provided');
+        ws.close(1008, 'callId is required');
+        return;
+      }
+      
+      console.log('📞 New call connection:', callId);
+      
+      // Import your MediaStreamHandler here
+      const MediaStreamHandler = require('./services/mediaStreamHandler');
+      
+      // Check if MediaStreamHandler is available
+      if (typeof MediaStreamHandler !== 'function') {
+        console.error('❌ MediaStreamHandler is not available');
+        ws.close(1011, 'Service unavailable');
+        return;
+      }
+      
+      console.log('✅ MediaStreamHandler is available, handling connection...');
+      
+      try {
+        // Create handler instance
+        const handler = new MediaStreamHandler(ws, callId);
+        
+        // Handle errors
+        ws.on('error', (error) => {
+          console.error('🚨 Call WebSocket error:', error);
+          handler.cleanup();
+        });
+        
+        ws.on('close', () => {
+          console.log('👋 Call WebSocket closed:', callId);
+          handler.cleanup();
+        });
+        
+      } catch (error) {
+        console.error('🚨 Error creating MediaStreamHandler:', error);
+        ws.close(1011, 'Internal server error');
+      }
+    });
+  } 
+  else {
+    // Unknown WebSocket endpoint
+    console.log('❌ Unknown WebSocket endpoint:', pathname);
+    socket.destroy();
+  }
+});
 // Start server and bind to 0.0.0.0 for Railway
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server listening on port ${PORT}`);
