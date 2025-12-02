@@ -40,6 +40,7 @@ console.log('=== ENVIRONMENT CHECK ===');
 console.log('APP_URL:', process.env.APP_URL || 'NOT SET');
 console.log('NODE_ENV:', process.env.NODE_ENV || 'NOT SET');
 console.log('PORT:', PORT);
+console.log('ELEVEN_LABS_KEY:', process.env.ELEVEN_LABS_KEYS);
 console.log('========================');
 
 // Instantiate ONLY services that require instances
