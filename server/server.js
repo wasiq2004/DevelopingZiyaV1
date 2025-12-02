@@ -388,7 +388,141 @@ app.get('/api/voice-config-check', (req, res) => {
       }
     }
   };
+// Add these endpoints RIGHT AFTER the /api/voice-config-check endpoint in server.js
 
+// Test ElevenLabs API key freshness
+app.get('/api/test-elevenlabs-key', async (req, res) => {
+  try {
+    const key1 = process.env.ELEVEN_LABS_API_KEY;
+    const key2 = process.env.ELEVENLABS_API_KEY;
+    
+    const result = {
+      timestamp: new Date().toISOString(),
+      keys: {
+        ELEVEN_LABS_API_KEY: {
+          exists: !!key1,
+          preview: key1 ? `${key1.substring(0, 8)}...` : 'NOT SET',
+          length: key1 ? key1.length : 0
+        },
+        ELEVENLABS_API_KEY: {
+          exists: !!key2,
+          preview: key2 ? `${key2.substring(0, 8)}...` : 'NOT SET',
+          length: key2 ? key2.length : 0
+        }
+      }
+    };
+
+    // Test the key with ElevenLabs API
+    const testKey = key1 || key2;
+    if (testKey) {
+      try {
+        const testResponse = await fetch('https://api.elevenlabs.io/v1/voices', {
+          headers: { 'xi-api-key': testKey }
+        });
+        
+        result.apiTest = {
+          status: testResponse.status,
+          ok: testResponse.ok,
+          message: testResponse.ok ? 'API key is valid ✅' : 'API key is invalid ❌'
+        };
+      } catch (error) {
+        result.apiTest = {
+          error: error.message,
+          message: 'Failed to test API key ❌'
+        };
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Test WebSocket connection path
+app.get('/api/test-websocket-path', (req, res) => {
+  const appUrl = process.env.APP_URL || 'NOT SET';
+  const wsUrl = appUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+  
+  res.json({
+    timestamp: new Date().toISOString(),
+    appUrl: appUrl,
+    websocketUrl: `${wsUrl}/api/call`,
+    expectedFormat: 'wss://your-domain.railway.app/api/call?callId=xxx&agentId=xxx&contactId=xxx',
+    registeredEndpoints: {
+      '/api/call': 'WebSocket handler for Twilio media streams ✅',
+      '/voice-stream': 'WebSocket handler for frontend voice chat ✅'
+    },
+    instructions: 'Make sure Twilio TwiML uses this exact WebSocket URL format'
+  });
+});
+
+// Test complete voice pipeline
+app.post('/api/test-voice-pipeline', async (req, res) => {
+  try {
+    const { text, voiceId } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text parameter required' });
+    }
+
+    const testVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
+    const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: 'ElevenLabs API key not configured',
+        fix: 'Set ELEVEN_LABS_API_KEY or ELEVENLABS_API_KEY in Railway environment variables'
+      });
+    }
+
+    console.log(`Testing TTS with key: ${apiKey.substring(0, 8)}...`);
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${testVoiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/basic'
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: 'eleven_turbo_v2_5',
+          output_format: 'ulaw_8000'
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({
+        error: 'ElevenLabs API error',
+        status: response.status,
+        details: errorText,
+        keyUsed: `${apiKey.substring(0, 8)}...`
+      });
+    }
+
+    const audioBuffer = await response.buffer();
+    
+    res.json({
+      success: true,
+      audioSize: audioBuffer.length,
+      audioFormat: 'ulaw_8000',
+      voiceId: testVoiceId,
+      keyUsed: `${apiKey.substring(0, 8)}...`,
+      message: 'Voice pipeline is working correctly ✅'
+    });
+
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
   // Determine overall status
   const allConfigured = 
     config.checks.deepgram.configured &&
