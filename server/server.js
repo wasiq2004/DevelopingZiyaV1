@@ -3121,6 +3121,7 @@ app.post('/api/campaigns/:id/stop', async (req, res) => {
     
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
     const updatedCampaign = await campaignService.stopCampaign(id, userId);
   
     res.json({ success: true, data: updatedCampaign });
