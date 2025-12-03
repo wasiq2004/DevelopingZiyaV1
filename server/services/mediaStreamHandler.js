@@ -55,166 +55,178 @@ class MediaStreamHandler {
         console.log(`💬 ${role.toUpperCase()}: ${text}`);
     }
 
-    async handleConnection(ws, req) {
-        let callId = null;
-        try {
-            // ✅ FIX: Parse query params correctly from Twilio
-            const url = new URL(req.url, `http://${req.headers.host}`);
-            const campaignId = url.searchParams.get('campaignId');
-            const contactId = url.searchParams.get('contactId');
-            const agentId = url.searchParams.get('agentId');
-            const queryCallId = url.searchParams.get('callId');
-            
-            callId = queryCallId || contactId;
+    // REPLACE the handleConnection method in mediaStreamHandler.js:
 
-            if (!callId) {
-                console.error("❌ Missing callId or contactId");
-                ws.close();
-                return;
-            }
+async handleConnection(ws, req) {
+    let callId = null;
+    try {
+        // ✅ FIX: Get params from req.query (set by WebSocket handler)
+        const { campaignId, contactId, agentId, callId: queryCallId } = req.query || {};
+        
+        callId = queryCallId || contactId;
 
-            console.log(`📞 New call connection: ${callId}`);
-            console.log(`   Agent ID: ${agentId || 'none'}`);
-            console.log(`   Campaign ID: ${campaignId || 'none'}`);
-            console.log(`   Contact ID: ${contactId || 'none'}`);
-
-            let agentPrompt = "You are a helpful AI assistant. Be concise and natural in your responses.";
-            let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
-            let greetingMessage = "Hello! How can I help you today?";
-
-            if (agentId) {
-                try {
-                    const AgentService = require('./agentService.js');
-                    const agentService = new AgentService(require('../config/database.js').default);
-                    
-                    const agent = await agentService.getAgentById('system', agentId);
-                    if (agent) {
-                        agentPrompt = agent.identity || agent.prompt || agentPrompt;
-                        agentVoiceId = agent.voiceId || agentVoiceId;
-                        if (agent.settings && agent.settings.greetingLine) {
-                            greetingMessage = agent.settings.greetingLine;
-                        }
-                        console.log(`✅ Loaded agent: ${agent.name}`);
-                        console.log(`   Voice ID: ${agentVoiceId}`);
-                        console.log(`   Greeting: ${greetingMessage}`);
-                    } else {
-                        console.warn(`⚠️  Agent ${agentId} not found, using defaults`);
-                    }
-                } catch (agentError) {
-                    console.error("Error loading agent:", agentError);
-                }
-            }
-
-            const session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
-            session.greetingMessage = greetingMessage;
-
-            // Initialize Deepgram STT stream
-            const deepgramLive = this.deepgramClient.listen.live({
-                encoding: "mulaw",
-                sample_rate: 8000,
-                model: "nova-2-phonecall",
-                smart_format: true,
-                interim_results: false,
-                utterance_end_ms: 1000,
-                punctuate: true,
-            });
-
-            session.sttStream = deepgramLive;
-
-            deepgramLive.on(LiveTranscriptionEvents.Transcript, async (data) => {
-                try {
-                    const transcript = data.channel?.alternatives?.[0]?.transcript;
-                    if (!transcript || !transcript.trim()) return;
-
-                    console.log(`🎤 Transcribed: "${transcript}"`);
-                    this.appendToContext(session, transcript, "user");
-
-                    const llmResponse = await this.callLLM(session);
-                    this.appendToContext(session, llmResponse, "model");
-
-                    const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId);
-                    if (ttsAudio) {
-                        this.sendAudioToTwilio(session, ttsAudio);
-                    }
-                } catch (err) {
-                    console.error("❌ Error in transcript handler:", err);
-                }
-            });
-
-            deepgramLive.on(LiveTranscriptionEvents.Error, (error) => {
-                console.error("❌ Deepgram error:", error);
-            });
-
-            deepgramLive.on(LiveTranscriptionEvents.Close, () => {
-                console.log("🔌 Deepgram connection closed");
-            });
-
-            deepgramLive.on(LiveTranscriptionEvents.Open, () => {
-                console.log("✅ Deepgram connection opened");
-            });
-
-            ws.on("message", async (message) => {
-                try {
-                    const data = JSON.parse(message.toString());
-
-                    if (data.event === "connected") {
-                        console.log("✅ Twilio Media Stream connected");
-                    } else if (data.event === "start") {
-                        console.log("▶️  Media Stream started:", data.start.streamSid);
-                        session.streamSid = data.start.streamSid;
-                        session.isReady = true;
-
-                        // Send queued audio
-                        if (session.audioQueue.length > 0) {
-                            console.log(`📤 Sending ${session.audioQueue.length} queued audio chunks`);
-                            for (const audioBuffer of session.audioQueue) {
-                                this.sendAudioToTwilio(session, audioBuffer);
-                            }
-                            session.audioQueue = [];
-                        }
-
-                        // Send greeting after connection is established
-                        setTimeout(async () => {
-                            console.log(`👋 Sending greeting: "${session.greetingMessage}"`);
-                            const greetingAudio = await this.synthesizeTTS(
-                                session.greetingMessage, 
-                                session.agentVoiceId
-                            );
-                            if (greetingAudio) {
-                                this.sendAudioToTwilio(session, greetingAudio);
-                            }
-                        }, 500);
-
-                    } else if (data.event === "media") {
-                        if (session.sttStream) {
-                            const audioBuffer = Buffer.from(data.media.payload, "base64");
-                            if (audioBuffer.length > 0) {
-                                session.sttStream.send(audioBuffer);
-                            }
-                        }
-                    } else if (data.event === "stop") {
-                        console.log("⏹️  Media Stream stopped");
-                        this.endSession(callId);
-                    }
-                } catch (err) {
-                    console.error("❌ WS message error:", err);
-                }
-            });
-            ws.on("close", () => {
-                console.log("🔌 WebSocket closed");
-                this.endSession(callId);
-            });
-            ws.on("error", (error) => {
-                console.error("❌ WebSocket error:", error);
-            });
-        } catch (err) {
-            console.error("❌ Error handling connection:", err);
-            if (callId) {
-                this.endSession(callId);
-            }
+        if (!callId) {
+            console.error("❌ Missing callId or contactId");
+            console.error("   req.query:", req.query);
             ws.close();
+            return;
         }
+
+        console.log(`📞 New call connection: ${callId}`);
+        console.log(`   Agent ID: ${agentId || 'none'}`);
+        console.log(`   Campaign ID: ${campaignId || 'none'}`);
+        console.log(`   Contact ID: ${contactId || 'none'}`);
+
+        let agentPrompt = "You are a helpful AI assistant. Be concise and natural in your responses.";
+        let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
+        let greetingMessage = "Hello! How can I help you today?";
+
+        if (agentId) {
+            try {
+                const AgentService = require('./agentService.js');
+                const agentService = new AgentService(require('../config/database.js').default);
+                
+                const agent = await agentService.getAgentById('system', agentId);
+                if (agent) {
+                    agentPrompt = agent.identity || agent.prompt || agentPrompt;
+                    agentVoiceId = agent.voiceId || agentVoiceId;
+                    if (agent.settings && agent.settings.greetingLine) {
+                        greetingMessage = agent.settings.greetingLine;
+                    }
+                    console.log(`✅ Loaded agent: ${agent.name}`);
+                    console.log(`   Voice ID: ${agentVoiceId}`);
+                    console.log(`   Greeting: ${greetingMessage}`);
+                } else {
+                    console.warn(`⚠️  Agent ${agentId} not found, using defaults`);
+                }
+            } catch (agentError) {
+                console.error("Error loading agent:", agentError);
+            }
+        }
+
+        const session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
+        session.greetingMessage = greetingMessage;
+
+        // Initialize Deepgram STT stream
+        const deepgramLive = this.deepgramClient.listen.live({
+            encoding: "mulaw",
+            sample_rate: 8000,
+            model: "nova-2-phonecall",
+            smart_format: true,
+            interim_results: false,
+            utterance_end_ms: 1000,
+            punctuate: true,
+        });
+
+        session.sttStream = deepgramLive;
+
+        deepgramLive.on(LiveTranscriptionEvents.Transcript, async (data) => {
+            try {
+                const transcript = data.channel?.alternatives?.[0]?.transcript;
+                if (!transcript || !transcript.trim()) return;
+
+                console.log(`🎤 Transcribed: "${transcript}"`);
+                this.appendToContext(session, transcript, "user");
+
+                const llmResponse = await this.callLLM(session);
+                this.appendToContext(session, llmResponse, "model");
+
+                const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId);
+                if (ttsAudio) {
+                    this.sendAudioToTwilio(session, ttsAudio);
+                }
+            } catch (err) {
+                console.error("❌ Error in transcript handler:", err);
+            }
+        });
+
+        deepgramLive.on(LiveTranscriptionEvents.Error, (error) => {
+            console.error("❌ Deepgram error:", error);
+        });
+
+        deepgramLive.on(LiveTranscriptionEvents.Close, () => {
+            console.log("🔌 Deepgram connection closed");
+        });
+
+        deepgramLive.on(LiveTranscriptionEvents.Open, () => {
+            console.log("✅ Deepgram connection opened");
+        });
+
+        ws.on("message", async (message) => {
+            try {
+                // ✅ FIX: Handle both text and binary messages
+                let data;
+                if (Buffer.isBuffer(message)) {
+                    // Binary message from Twilio - convert to string
+                    data = JSON.parse(message.toString('utf8'));
+                } else if (typeof message === 'string') {
+                    data = JSON.parse(message);
+                } else {
+                    console.warn("Unknown message type:", typeof message);
+                    return;
+                }
+
+                if (data.event === "connected") {
+                    console.log("✅ Twilio Media Stream connected");
+                } else if (data.event === "start") {
+                    console.log("▶️  Media Stream started:", data.start.streamSid);
+                    session.streamSid = data.start.streamSid;
+                    session.isReady = true;
+
+                    // Send queued audio
+                    if (session.audioQueue.length > 0) {
+                        console.log(`📤 Sending ${session.audioQueue.length} queued audio chunks`);
+                        for (const audioBuffer of session.audioQueue) {
+                            this.sendAudioToTwilio(session, audioBuffer);
+                        }
+                        session.audioQueue = [];
+                    }
+
+                    // Send greeting after connection is established
+                    setTimeout(async () => {
+                        console.log(`👋 Sending greeting: "${session.greetingMessage}"`);
+                        const greetingAudio = await this.synthesizeTTS(
+                            session.greetingMessage, 
+                            session.agentVoiceId
+                        );
+                        if (greetingAudio) {
+                            this.sendAudioToTwilio(session, greetingAudio);
+                        }
+                    }, 500);
+
+                } else if (data.event === "media") {
+                    if (session.sttStream) {
+                        const audioBuffer = Buffer.from(data.media.payload, "base64");
+                        if (audioBuffer.length > 0) {
+                            session.sttStream.send(audioBuffer);
+                        }
+                    }
+                } else if (data.event === "stop") {
+                    console.log("⏹️  Media Stream stopped");
+                    this.endSession(callId);
+                }
+            } catch (err) {
+                console.error("❌ WS message error:", err);
+            }
+        });
+
+        ws.on("close", () => {
+            console.log("🔌 WebSocket closed");
+            this.endSession(callId);
+        });
+
+        ws.on("error", (error) => {
+            console.error("❌ WebSocket error:", error);
+        });
+
+    } catch (err) {
+        console.error("❌ Error handling connection:", err);
+        if (callId) {
+            this.endSession(callId);
+        }
+        ws.close();
     }
+}
     async callLLM(session) {
         try {
             const response = await this.llmService.generateContent({
