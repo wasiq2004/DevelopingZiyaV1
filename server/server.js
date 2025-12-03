@@ -38,9 +38,10 @@ const expressWsInstance = expressWs(app, server, {
     perMessageDeflate: false,
     clientTracking: true,
     maxPayload: 100 * 1024 * 1024,
+       binary: true
   }
 });
-console.log('✅ WebSocket support enabled on HTTP server with Twilio-compatible options');
+console.log('✅ WebSocket support enabled with BINARY frame support for Twilio');
 
 // ADD THIS BLOCK HERE:
 console.log('=== ENVIRONMENT CHECK ===');
