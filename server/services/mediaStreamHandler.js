@@ -60,7 +60,6 @@ class MediaStreamHandler {
 async handleConnection(ws, req) {
     let callId = null;
     try {
-        // ✅ FIX: Get params from req.query (set by WebSocket handler)
         const { campaignId, contactId, agentId, callId: queryCallId } = req.query || {};
         
         callId = queryCallId || contactId;
@@ -74,8 +73,6 @@ async handleConnection(ws, req) {
 
         console.log(`📞 New call connection: ${callId}`);
         console.log(`   Agent ID: ${agentId || 'none'}`);
-        console.log(`   Campaign ID: ${campaignId || 'none'}`);
-        console.log(`   Contact ID: ${contactId || 'none'}`);
 
         let agentPrompt = "You are a helpful AI assistant. Be concise and natural in your responses.";
         let agentVoiceId = "21m00Tcm4TlvDq8ikWAM";
@@ -120,7 +117,7 @@ async handleConnection(ws, req) {
 
         session.sttStream = deepgramLive;
 
-        deepgramLive.on(LiveTranscriptionEvents.Transcript, async (data) => {
+        deepgramLive.on("Transcript", async (data) => {
             try {
                 const transcript = data.channel?.alternatives?.[0]?.transcript;
                 if (!transcript || !transcript.trim()) return;
@@ -140,29 +137,52 @@ async handleConnection(ws, req) {
             }
         });
 
-        deepgramLive.on(LiveTranscriptionEvents.Error, (error) => {
+        deepgramLive.on("Error", (error) => {
             console.error("❌ Deepgram error:", error);
         });
 
-        deepgramLive.on(LiveTranscriptionEvents.Close, () => {
+        deepgramLive.on("Close", () => {
             console.log("🔌 Deepgram connection closed");
         });
 
-        deepgramLive.on(LiveTranscriptionEvents.Open, () => {
+        deepgramLive.on("Open", () => {
             console.log("✅ Deepgram connection opened");
         });
 
+        // ✅ CRITICAL: Configure WebSocket for binary
+        ws.binaryType = 'arraybuffer';
+
+        // ✅ CRITICAL: Handle errors without crashing
+        ws.on("error", (error) => {
+            if (error.code === 'WS_ERR_INVALID_UTF8') {
+                console.warn("⚠️  Non-UTF8 frame received (normal for binary data)");
+                return;
+            }
+            console.error("❌ WebSocket error:", error);
+        });
+
+        // ✅ CRITICAL: Handle binary messages properly
         ws.on("message", async (message) => {
             try {
-                // ✅ FIX: Handle both text and binary messages
                 let data;
-                if (Buffer.isBuffer(message)) {
-                    // Binary message from Twilio - convert to string
-                    data = JSON.parse(message.toString('utf8'));
-                } else if (typeof message === 'string') {
-                    data = JSON.parse(message);
+                let rawMessage = message;
+                
+                if (message instanceof ArrayBuffer) {
+                    rawMessage = Buffer.from(message);
+                }
+                
+                if (Buffer.isBuffer(rawMessage)) {
+                    try {
+                        const messageStr = rawMessage.toString('utf8');
+                        data = JSON.parse(messageStr);
+                    } catch (parseError) {
+                        console.warn("Non-JSON binary message, length:", rawMessage.length);
+                        return;
+                    }
+                } else if (typeof rawMessage === 'string') {
+                    data = JSON.parse(rawMessage);
                 } else {
-                    console.warn("Unknown message type:", typeof message);
+                    console.warn("Unknown message type:", typeof rawMessage);
                     return;
                 }
 
@@ -173,7 +193,6 @@ async handleConnection(ws, req) {
                     session.streamSid = data.start.streamSid;
                     session.isReady = true;
 
-                    // Send queued audio
                     if (session.audioQueue.length > 0) {
                         console.log(`📤 Sending ${session.audioQueue.length} queued audio chunks`);
                         for (const audioBuffer of session.audioQueue) {
@@ -182,7 +201,6 @@ async handleConnection(ws, req) {
                         session.audioQueue = [];
                     }
 
-                    // Send greeting after connection is established
                     setTimeout(async () => {
                         console.log(`👋 Sending greeting: "${session.greetingMessage}"`);
                         const greetingAudio = await this.synthesizeTTS(
@@ -195,7 +213,7 @@ async handleConnection(ws, req) {
                     }, 500);
 
                 } else if (data.event === "media") {
-                    if (session.sttStream) {
+                    if (session.sttStream && data.media && data.media.payload) {
                         const audioBuffer = Buffer.from(data.media.payload, "base64");
                         if (audioBuffer.length > 0) {
                             session.sttStream.send(audioBuffer);
@@ -204,6 +222,8 @@ async handleConnection(ws, req) {
                 } else if (data.event === "stop") {
                     console.log("⏹️  Media Stream stopped");
                     this.endSession(callId);
+                } else if (data.event === "mark") {
+                    console.log("📍 Mark:", data.mark?.name || 'unnamed');
                 }
             } catch (err) {
                 console.error("❌ WS message error:", err);
@@ -213,10 +233,6 @@ async handleConnection(ws, req) {
         ws.on("close", () => {
             console.log("🔌 WebSocket closed");
             this.endSession(callId);
-        });
-
-        ws.on("error", (error) => {
-            console.error("❌ WebSocket error:", error);
         });
 
     } catch (err) {
