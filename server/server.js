@@ -9,13 +9,11 @@ const { v4: uuidv4 } = require('uuid');
 const twilio = require('twilio');
 const WebSocket = require('ws');
 const url = require('url');
-
 // Load environment variables
 const envPath = process.env.NODE_ENV === 'production'
   ? path.resolve(__dirname, '.env')
   : path.resolve(__dirname, '../.env.local');
 dotenv.config({ path: envPath });
-
 // Import services (STATIC classes)
 const { ApiKeyService } = require('./services/apiKeyService.js');
 const { ExternalApiService } = require('./services/externalApiService.js');
@@ -35,7 +33,14 @@ const wss = new WebSocket.Server({ noServer: true });
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const server = require('http').createServer(app);
-const expressWsInstance = expressWs(app, server);
+const expressWsInstance = expressWs(app, server, {
+  wsOptions: {
+    perMessageDeflate: false,
+    clientTracking: true,
+    maxPayload: 100 * 1024 * 1024,
+  }
+});
+console.log('✅ WebSocket support enabled on HTTP server with Twilio-compatible options');
 
 // ADD THIS BLOCK HERE:
 console.log('=== ENVIRONMENT CHECK ===');
@@ -67,9 +72,7 @@ if (process.env.DEEPGRAM_API_KEY && process.env.GOOGLE_GEMINI_API_KEY) {
 } else {
   console.warn("Voice call feature disabled — missing DEEPGRAM_API_KEY or GOOGLE_GEMINI_API_KEY");
 }
-
 const agentService = new AgentService(mysqlPool);
-
 console.log('✅ WebSocket support enabled on HTTP server');
 
 // === ADD THIS BLOCK ===
@@ -78,11 +81,7 @@ if (!process.env.ELEVEN_LABS_API_KEY) {
 } else {
   console.log("ElevenLabs API key loaded successfully");
 }
-// =======================
-
 console.log("Twilio Basic Service initialized");
-
-
 // ================= CORS ==================
 const FRONTEND_URL = "https://benevolent-custard-76836b.netlify.app";
 
