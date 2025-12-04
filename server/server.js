@@ -2499,6 +2499,15 @@ if (process.env.DEEPGRAM_API_KEY && process.env.GOOGLE_GEMINI_API_KEY) {
 app.ws('/api/stt', function (ws, req) {
   elevenLabsStreamHandler.handleConnection(ws, req);
 })
+// WebSocket endpoint for Twilio Media Streams (Voice Agent)
+app.ws('/api/call', (ws, req) => {
+  if (mediaStreamHandler) {
+    mediaStreamHandler.handleConnection(ws, req);
+  } else {
+    console.error('MediaStreamHandler not initialized - check API keys');
+    ws.close();
+  }
+});
 // WebSocket endpoint for voice stream (frontend voice chat + Twilio calls)
 app.ws('/voice-stream', async function (ws, req) {  // ✅ ADDED async
   console.log('New voice stream connection established');
