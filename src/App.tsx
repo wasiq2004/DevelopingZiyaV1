@@ -53,12 +53,8 @@ const App: React.FC = () => {
                 {/* User Routes */}
                 <Route path="/" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -71,12 +67,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/dashboard" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -89,12 +81,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/campaigns" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -107,12 +95,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/campaigns/:id" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -125,12 +109,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/agents" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -143,12 +123,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/phone-numbers" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -161,12 +137,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/settings" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -179,12 +151,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/api" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}
@@ -197,12 +165,8 @@ const App: React.FC = () => {
                 } />
                 <Route path="/credits" element={
                     <ProtectedRoute>
-                        <div className="gradient-bg-animated min-h-screen text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
-                            {/* Animated gradient orbs */}
-                            <div className="gradient-orb gradient-orb-1"></div>
-                            <div className="gradient-orb gradient-orb-2"></div>
-                            <div className="gradient-orb gradient-orb-3"></div>
-                            
+                        <div className="min-h-screen bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 font-sans page-transition relative overflow-hidden">
+
                             <Sidebar
                                 isCollapsed={isSidebarCollapsed}
                                 setCollapsed={setSidebarCollapsed}

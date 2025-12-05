@@ -100,6 +100,9 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent: initialAgent, 
     const [isKnowledgeModalOpen, setKnowledgeModalOpen] = useState(false);
     
     // Voice preview state
+    // State for API-fetched voices
+    const [availableVoices, setAvailableVoices] = useState<{[key: string]: {id: string, name: string}[]}>({});
+    const [loadingVoices, setLoadingVoices] = useState(false);
     const [isPlayingPreview, setIsPlayingPreview] = useState(false);
     const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
     
@@ -196,6 +199,72 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent: initialAgent, 
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Fetch available voices from API
+    useEffect(() => {
+    const fetchVoices = async () => {
+        try {
+            setLoadingVoices(true);
+            
+            // Use the correct API base URL
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://ziyavoice-production.up.railway.app';
+            const url = `${apiBaseUrl}/api/voices/elevenlabs/list`;
+            
+            console.log('🔍 Fetching voices from:', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response headers:', response.headers);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Voice fetch error:', response.status, errorText);
+                throw new Error(`Failed to fetch voices: ${response.status}`);
+            }
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const textResponse = await response.text();
+                console.error('❌ Non-JSON response:', textResponse.substring(0, 200));
+                throw new Error('Server returned non-JSON response');
+            }
+            
+            const data = await response.json();
+            console.log('✅ Voices data received:', data);
+            
+            if (data.success && data.voices) {
+                // Transform API response to match the expected format
+                const voicesByProvider = {
+                    'eleven-labs': data.voices.map((voice: any) => ({
+                        id: voice.voice_id,  // Use voice_id directly from API
+                        name: voice.name
+                    }))
+                };
+                
+                console.log('✅ Transformed voices:', voicesByProvider);
+                console.log('✅ Total voices loaded:', voicesByProvider['eleven-labs'].length);
+                setAvailableVoices(voicesByProvider);
+            } else {
+                throw new Error('Invalid response format from API');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching voices:', error);
+            alert(`Failed to load voices: ${error.message}. Using default voices.`);
+            // Fallback to hardcoded voices if API fails
+            setAvailableVoices(AVAILABLE_VOICES);
+        } finally {
+            setLoadingVoices(false);
+        }
+    };
+    
+    fetchVoices();
+}, []);
     // Audio helper functions
 
     const decodeAudioData = async (
@@ -1218,21 +1287,28 @@ When you need to collect information from the user, ask for the required paramet
     };
 
     const handleSaveVoice = (newVoiceId: string) => {
-        let updatedAgent = { ...editedAgent, voiceId: newVoiceId };
+    console.log('=== SAVING VOICE ===');
+    console.log('New Voice ID:', newVoiceId);
+    console.log('Current Agent Voice ID:', editedAgent.voiceId);
     
-        // Auto-update language if the current one is not supported by the new voice provider
-        const newProviderId = getVoiceProviderById(newVoiceId);
-        const supportedLanguages = AVAILABLE_LANGUAGES_BY_PROVIDER[newProviderId] || AVAILABLE_LANGUAGES;
-        const isCurrentLanguageSupported = supportedLanguages.some(lang => lang.id === updatedAgent.language);
+    let updatedAgent = { ...editedAgent, voiceId: newVoiceId };
+
+    // Auto-update language if the current one is not supported by the new voice provider
+    const newProviderId = getVoiceProviderById(newVoiceId);
+    const supportedLanguages = AVAILABLE_LANGUAGES_BY_PROVIDER[newProviderId] || AVAILABLE_LANGUAGES;
+    const isCurrentLanguageSupported = supportedLanguages.some(lang => lang.id === updatedAgent.language);
+
+    if (!isCurrentLanguageSupported) {
+        updatedAgent.language = supportedLanguages[0].id;
+    }
+
+    console.log('Updated Agent Voice ID:', updatedAgent.voiceId);
+    console.log('===================');
     
-        if (!isCurrentLanguageSupported) {
-            updatedAgent.language = supportedLanguages[0].id; // Default to the first supported language
-        }
-    
-        setEditedAgent(updatedAgent);
-        updateAgent(updatedAgent);
-        setVoiceModalOpen(false);
-    };
+    setEditedAgent(updatedAgent);
+    updateAgent(updatedAgent);
+    setVoiceModalOpen(false);
+};
 
     const handleSaveLanguage = (newLanguageId: string) => {
         const updatedAgent = { ...editedAgent, language: newLanguageId };
@@ -1525,93 +1601,116 @@ When you need to collect information from the user, ask for the required paramet
     };
     
     const VoiceSelectionModal: React.FC<{
-        onClose: () => void;
-        onSave: (voiceId: string) => void;
-        currentVoiceId: string;
-    }> = ({ onClose, onSave, currentVoiceId }) => {
-        const [selectedProvider, setSelectedProvider] = useState(() => getVoiceProviderById(currentVoiceId));
-        const [selectedVoice, setSelectedVoice] = useState(currentVoiceId);
-    
-        useEffect(() => {
-            const voicesForProvider = AVAILABLE_VOICES[selectedProvider] || [];
-            if (!voicesForProvider.some(v => v.id === selectedVoice)) {
-                setSelectedVoice(voicesForProvider[0]?.id || '');
-            }
-        }, [selectedProvider, selectedVoice]);
-    
-        return (
-            <Modal isOpen={true} onClose={onClose} title="Select Voice">
-                 <div className="space-y-4">
-                    <div className="border-b border-slate-200 dark:border-slate-700">
-                        <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                            {AVAILABLE_VOICE_PROVIDERS.map(provider => (
-                                <button
-                                    key={provider.id}
-                                    onClick={() => setSelectedProvider(provider.id)}
-                                    className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                        selectedProvider === provider.id
-                                            ? 'border-primary text-primary'
-                                            : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
-                                    }`}
-                                >
-                                    {provider.name}
-                                </button>
-                            ))}
-                        </nav>
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 mt-4">Available Voices</h4>
-                        <div className="space-y-2 max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-md p-2">
-                            {(AVAILABLE_VOICES[selectedProvider] || []).map(voice => (
-                                <div
-                                    key={voice.id}
-                                    onClick={() => setSelectedVoice(voice.id)}
-                                    className={`flex items-center p-2 rounded-md cursor-pointer transition-colors ${selectedVoice === voice.id ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                >
-                                    <div className="w-8 h-8 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 mr-3">
-                                        {voice.name.charAt(0)}
-                                    </div>
-                                    <span className="flex-grow font-medium">{voice.name}</span>
-                                    {selectedProvider === 'eleven-labs' && (
-                                        <button onClick={(e) => { e.stopPropagation(); alert(`Cloning voice: ${voice.name}`);}} className="p-1 text-slate-500 hover:text-primary-dark dark:hover:text-primary-light"><DocumentDuplicateIcon className="w-5 h-5" /></button>
-                                    )}
-                                    <button 
-                                                                            onClick={(e) => { 
-                                                                                e.stopPropagation(); 
-                                                                                if (isPlayingPreview) {
-                                                                                    stopVoicePreview();
-                                                                                } else {
-                                                                                    playVoicePreview(voice.id);
-                                                                                }
-                                                                            }} 
-                                                                            className="p-1 text-slate-500 hover:text-primary-dark dark:hover:text-primary-light"
-                                                                            disabled={isPlayingPreview}
-                                                                        >
-                                                                            {isPlayingPreview ? (
-                                                                                <StopIcon className="w-5 h-5" />
-                                                                            ) : (
-                                                                                <PlayIcon className="w-5 h-5" />
-                                                                            )}
-                                                                        </button>
-                                </div>
-                            ))}
+    onClose: () => void;
+    onSave: (voiceId: string) => void;
+    currentVoiceId: string;
+}> = ({ onClose, onSave, currentVoiceId }) => {
+    const [selectedProvider, setSelectedProvider] = useState(() => getVoiceProviderById(currentVoiceId));
+    const [selectedVoice, setSelectedVoice] = useState(currentVoiceId);
+
+    // Use API-fetched voices or fallback to hardcoded ones
+    const voicesToDisplay = Object.keys(availableVoices).length > 0 ? availableVoices : AVAILABLE_VOICES;
+
+    useEffect(() => {
+        const voicesForProvider = voicesToDisplay[selectedProvider] || [];
+        if (!voicesForProvider.some(v => v.id === selectedVoice)) {
+            setSelectedVoice(voicesForProvider[0]?.id || '');
+        }
+    }, [selectedProvider, selectedVoice, voicesToDisplay]);
+
+    return (
+        <Modal isOpen={true} onClose={onClose} title="Select Voice">
+            <div className="space-y-4">
+                <div className="border-b border-slate-200 dark:border-slate-700">
+                    <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                        {AVAILABLE_VOICE_PROVIDERS.map(provider => (
+                            <button
+                                key={provider.id}
+                                onClick={() => setSelectedProvider(provider.id)}
+                                className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                    selectedProvider === provider.id
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
+                                }`}
+                            >
+                                {provider.name}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+                <div>
+                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 mt-4">
+                        My Voices {loadingVoices && <span className="text-xs text-slate-500">(Loading...)</span>}
+                    </h4>
+                    {loadingVoices ? (
+                        <div className="flex justify-center items-center h-32">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-md p-2">
+                            {(voicesToDisplay[selectedProvider] || []).length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">
+                                    <p>No voices found</p>
+                                    <p className="text-xs mt-2">Check your ElevenLabs API key configuration</p>
+                                </div>
+                            ) : (
+                                (voicesToDisplay[selectedProvider] || []).map(voice => (
+                                    <div
+                                        key={voice.id}
+                                        onClick={() => setSelectedVoice(voice.id)}
+                                        className={`flex items-center p-2 rounded-md cursor-pointer transition-colors ${
+                                            selectedVoice === voice.id 
+                                                ? 'bg-emerald-100 dark:bg-emerald-900/50' 
+                                                : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <div className="w-8 h-8 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 mr-3">
+                                            {voice.name.charAt(0)}
+                                        </div>
+                                        <span className="flex-grow font-medium">{voice.name}</span>
+                                        <button 
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                if (isPlayingPreview) {
+                                                    stopVoicePreview();
+                                                } else {
+                                                    playVoicePreview(voice.id);
+                                                }
+                                            }} 
+                                            className="p-1 text-slate-500 hover:text-primary-dark dark:hover:text-primary-light"
+                                            disabled={isPlayingPreview}
+                                        >
+                                            {isPlayingPreview ? (
+                                                <StopIcon className="w-5 h-5" />
+                                            ) : (
+                                                <PlayIcon className="w-5 h-5" />
+                                            )}
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
                 </div>
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <button onClick={onClose} className="bg-slate-200 dark:bg-slate-600 px-4 py-2 rounded-md font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => onSave(selectedVoice)}
-                        className="bg-primary text-white px-4 py-2 rounded-md font-semibold hover:bg-primary-dark transition-colors"
-                    >
-                        Save
-                    </button>
-                </div>
-            </Modal>
-        )
-    };
+            </div>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button onClick={onClose} className="bg-slate-200 dark:bg-slate-600 px-4 py-2 rounded-md font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">
+                    Cancel
+                </button>
+                <button
+                    onClick={() => {
+                        console.log('Saving voice ID:', selectedVoice);
+                        onSave(selectedVoice);
+                    }}
+                    className="bg-primary text-white px-4 py-2 rounded-md font-semibold hover:bg-primary-dark transition-colors"
+                    disabled={!selectedVoice}
+                >
+                    Save
+                </button>
+            </div>
+        </Modal>
+    );
+};
 
     const LanguageSelectionModal: React.FC<{
         onClose: () => void;
@@ -2290,7 +2389,24 @@ When you need to collect information from the user, ask for the required paramet
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white dark:bg-darkbg-light rounded-lg shadow-sm">
                         {[
                             { title: 'Model', value: AVAILABLE_MODELS.find(m => m.id === editedAgent.model)?.name || editedAgent.model, icon: ModelIcon, action: () => setModelModalOpen(true) },
-                            { title: 'Voice', value: getVoiceNameById(editedAgent.voiceId), icon: VoiceIcon, action: () => setVoiceModalOpen(true) },
+                            {
+                                title: 'Voice', 
+                                value: (() => {
+                                    // Try to get voice name from API-fetched voices first
+                                    const allVoices = Object.values(availableVoices).flat();
+                                    const apiVoice = allVoices.find(v => v.id === editedAgent.voiceId);
+                                    if (apiVoice) {
+                                        console.log('Found voice in API voices:', apiVoice.name);   
+                                        return apiVoice.name;
+                                    }
+                                    // Fallback to hardcoded voices
+                                    const hardcodedName = getVoiceNameById(editedAgent.voiceId);
+                                    console.log('Using hardcoded voice name:', hardcodedName);
+                                    return hardcodedName || editedAgent.voiceId;
+                                })(),
+                                icon: VoiceIcon, 
+                                action: () => setVoiceModalOpen(true) 
+                            },  
                             { title: 'Language', value: AVAILABLE_LANGUAGES.find(l => l.id === editedAgent.language)?.name || editedAgent.language, icon: LanguageIcon, action: () => setLanguageModalOpen(true) },
                         ].map(item => (
                              <button onClick={item.action} key={item.title} className="flex items-center p-2 text-left w-full hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">

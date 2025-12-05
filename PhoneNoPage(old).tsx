@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
 import CallInitiator from '../components/CallInitiator';
@@ -12,11 +11,11 @@ import { twilioBasicService } from '../services/twilioBasicService';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrl } from '../utils/api';
 
-const ImportPhoneNumberModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    user: any;
-    onPhoneNumberImported: (phoneNumber: PhoneNumber) => void;
+const ImportPhoneNumberModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void;
+  user: any;
+  onPhoneNumberImported: (phoneNumber: PhoneNumber) => void;
 }> = ({ isOpen, onClose, user, onPhoneNumberImported }) => {
     const PROVIDERS = ['TWILIO']; // Only Twilio provider
     const [activeProvider, setActiveProvider] = useState('TWILIO');
@@ -39,28 +38,28 @@ const ImportPhoneNumberModal: React.FC<{
         try {
             setLoading(true);
             setError('');
-
+            
             if (!user) {
                 throw new Error('User not authenticated');
             }
-
+            
             // Validate phone number format
             if (!formData.phoneNumber || formData.phoneNumber.trim().length === 0) {
                 throw new Error('Phone number is required');
             }
-
+            
             // Basic format validation - should contain at least numbers
             if (!/[\d\+\-\(\)\s]{7,}/.test(formData.phoneNumber)) {
                 throw new Error('Invalid phone number format');
             }
-
+            
             // Call the phone number service to import the phone number
             // The backend will validate with Twilio if credentials are available
             const newPhoneNumber = await phoneNumberService.importPhoneNumber(user.id, formData);
-
+            
             // Notify the parent component about the new phone number
             onPhoneNumberImported(newPhoneNumber);
-
+            
             // Reset form and close modal
             setFormData({
                 region: 'us-west',
@@ -69,7 +68,7 @@ const ImportPhoneNumberModal: React.FC<{
                 twilioSid: '',
             });
             onClose();
-
+            
             alert('Phone number imported successfully!');
         } catch (error) {
             console.error('Error importing phone number:', error);
@@ -79,12 +78,12 @@ const ImportPhoneNumberModal: React.FC<{
             setLoading(false);
         }
     };
-
+    
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4" onClick={onClose}>
-            <div
+            <div 
                 className="bg-darkbg text-slate-200 rounded-lg shadow-xl w-full max-w-2xl transform transition-all"
                 onClick={e => e.stopPropagation()}
             >
@@ -93,10 +92,11 @@ const ImportPhoneNumberModal: React.FC<{
                     <nav className="-mb-px flex space-x-8 px-6">
                         <button
                             onClick={() => setActiveProvider('TWILIO')}
-                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeProvider === 'TWILIO'
-                                ? 'border-primary text-white'
-                                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'
-                                }`}
+                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeProvider === 'TWILIO'
+                                    ? 'border-primary text-white'
+                                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                            }`}
                         >
                             TWILIO
                         </button>
@@ -120,7 +120,7 @@ const ImportPhoneNumberModal: React.FC<{
                         </select>
                         <p className="text-xs text-slate-400 mt-1">Select the region matching your Twilio account region. If unsure, choose based on call destination.</p>
                     </div>
-
+                    
                     <div>
                         <label htmlFor="country" className="block text-sm font-medium mb-1">Country</label>
                         <select
@@ -135,7 +135,7 @@ const ImportPhoneNumberModal: React.FC<{
                             <option value="ca">Canada (+1)</option>
                         </select>
                     </div>
-
+                    
                     <div>
                         <label htmlFor="phoneNumber" className="block text-sm font-medium mb-1">Phone Number</label>
                         <input
@@ -148,7 +148,7 @@ const ImportPhoneNumberModal: React.FC<{
                             className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
                         />
                     </div>
-
+                    
                     <div>
                         <label htmlFor="twilioSid" className="block text-sm font-medium mb-1">Twilio SID (Optional)</label>
                         <input
@@ -162,7 +162,7 @@ const ImportPhoneNumberModal: React.FC<{
                         />
                         <p className="text-xs text-slate-400 mt-1">Enter the Twilio SID for this phone number (starts with PN).</p>
                     </div>
-
+                    
                     {/* Error Message */}
                     {error && (
                         <div className="p-3 bg-red-900/30 border border-red-500 rounded text-red-200 text-sm">
@@ -170,7 +170,7 @@ const ImportPhoneNumberModal: React.FC<{
                         </div>
                     )}
                 </div>
-
+                
                 {/* Footer */}
                 <div className="px-6 py-4 bg-darkbg-light flex justify-between items-center rounded-b-lg">
                     <a href="#" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary hover:underline flex items-center">
@@ -178,15 +178,15 @@ const ImportPhoneNumberModal: React.FC<{
                         <ArrowUpRightIcon className="h-4 w-4 ml-1" />
                     </a>
                     <div className="flex space-x-3">
-                        <button
-                            onClick={onClose}
+                        <button 
+                            onClick={onClose} 
                             disabled={loading}
                             className="text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Close
                         </button>
-                        <button
-                            onClick={handleImport}
+                        <button 
+                            onClick={handleImport} 
                             disabled={loading}
                             className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                         >
@@ -211,309 +211,309 @@ const ImportPhoneNumberModal: React.FC<{
 
 // Connect Twilio Number Modal - Integrated Setup
 const ConnectTwilioNumberModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    user: any;
-    onNumberAdded: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  user: any;
+  onNumberAdded: () => void;
 }> = ({ isOpen, onClose, user, onNumberAdded }) => {
-    const [formData, setFormData] = useState({
-        twilioAccountSid: '',
-        twilioAuthToken: '',
-        phoneNumber: '',
-        region: 'us-west'
-    });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [step, setStep] = useState(1); // Step 1: Credentials, Step 2: Phone Number
-    const [availableNumbers, setAvailableNumbers] = useState<Array<{ phoneNumber: string; friendlyName: string; capabilities: any; sid: string }>>([]);
-    const [fetchingNumbers, setFetchingNumbers] = useState(false);
+  const [formData, setFormData] = useState({
+    twilioAccountSid: '',
+    twilioAuthToken: '',
+    phoneNumber: '',
+    region: 'us-west'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [step, setStep] = useState(1); // Step 1: Credentials, Step 2: Phone Number
+  const [availableNumbers, setAvailableNumbers] = useState<Array<{ phoneNumber: string; friendlyName: string; capabilities: any; sid: string }>>([]);
+  const [fetchingNumbers, setFetchingNumbers] = useState(false);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-        setError('');
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
+  };
 
-    const validateCredentials = async () => {
-        try {
-            setLoading(true);
-            setError('');
+  const validateCredentials = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+
+      if (!formData.twilioAccountSid || !formData.twilioAuthToken) {
+        throw new Error('Both Account SID and Auth Token are required');
+      }
+
+      if (!formData.twilioAccountSid.startsWith('AC')) {
+        throw new Error('Account SID should start with "AC"');
+      }
+
+      if (formData.twilioAuthToken.length < 32) {
+        throw new Error('Auth Token appears to be invalid (too short)');
+      }
+
+      // Validate credentials by making an API call to the backend
+      const response = await fetch(`${getApiBaseUrl()}/validate-twilio-credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountSid: formData.twilioAccountSid,
+          authToken: formData.twilioAuthToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to validate Twilio credentials');
+      }
+
+      setSuccess('✅ Credentials validated successfully! Fetching your phone numbers...');
+      
+      // Fetch available phone numbers from Twilio
+      setFetchingNumbers(true);
+      try {
+        const numbers = await twilioNumberService.fetchAvailableNumbers(
+          formData.twilioAccountSid,
+          formData.twilioAuthToken
+        );
+        setAvailableNumbers(numbers);
+        
+        if (numbers.length === 0) {
+          setError('No phone numbers found in your Twilio account. Please purchase a number first.');
+          setSuccess('');
+        } else {
+          setTimeout(() => {
             setSuccess('');
-
-            if (!formData.twilioAccountSid || !formData.twilioAuthToken) {
-                throw new Error('Both Account SID and Auth Token are required');
-            }
-
-            if (!formData.twilioAccountSid.startsWith('AC')) {
-                throw new Error('Account SID should start with "AC"');
-            }
-
-            if (formData.twilioAuthToken.length < 32) {
-                throw new Error('Auth Token appears to be invalid (too short)');
-            }
-
-            // Validate credentials by making an API call to the backend
-            const response = await fetch(`${getApiBaseUrl()}/validate-twilio-credentials`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    accountSid: formData.twilioAccountSid,
-                    authToken: formData.twilioAuthToken,
-                }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to validate Twilio credentials');
-            }
-
-            setSuccess('✅ Credentials validated successfully! Fetching your phone numbers...');
-
-            // Fetch available phone numbers from Twilio
-            setFetchingNumbers(true);
-            try {
-                const numbers = await twilioNumberService.fetchAvailableNumbers(
-                    formData.twilioAccountSid,
-                    formData.twilioAuthToken
-                );
-                setAvailableNumbers(numbers);
-
-                if (numbers.length === 0) {
-                    setError('No phone numbers found in your Twilio account. Please purchase a number first.');
-                    setSuccess('');
-                } else {
-                    setTimeout(() => {
-                        setSuccess('');
-                        setStep(2);
-                    }, 1000);
-                }
-            } catch (fetchError: any) {
-                console.error('Error fetching numbers:', fetchError);
-                setError('Failed to fetch phone numbers: ' + fetchError.message);
-                setSuccess('');
-            } finally {
-                setFetchingNumbers(false);
-            }
-        } catch (error: any) {
-            console.error('Error validating credentials:', error);
-            setError(error.message || 'Failed to validate credentials');
-        } finally {
-            setLoading(false);
+            setStep(2);
+          }, 1000);
         }
-    };
-
-    const handleConnectNumber = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            setSuccess('');
-
-            if (!user) {
-                throw new Error('User not authenticated');
-            }
-
-            if (!formData.phoneNumber) {
-                throw new Error('Phone number is required');
-            }
-
-            if (!formData.phoneNumber.startsWith('+')) {
-                throw new Error('Phone number must start with + (E.164 format)');
-            }
-
-            // Add the Twilio number with credentials (no verification needed)
-            const result = await twilioNumberService.addTwilioNumber(
-                user.id,
-                formData.phoneNumber,
-                formData.region,
-                formData.twilioAccountSid,
-                formData.twilioAuthToken
-            );
-
-            setSuccess('✅ Twilio number connected and verified successfully!');
-
-            setTimeout(() => {
-                onNumberAdded();
-                handleClose();
-            }, 1500);
-        } catch (error: any) {
-            console.error('Error connecting Twilio number:', error);
-            setError(error.message || 'Failed to connect Twilio number');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleClose = () => {
-        setFormData({
-            twilioAccountSid: '',
-            twilioAuthToken: '',
-            phoneNumber: '',
-            region: 'us-west'
-        });
-        setError('');
+      } catch (fetchError: any) {
+        console.error('Error fetching numbers:', fetchError);
+        setError('Failed to fetch phone numbers: ' + fetchError.message);
         setSuccess('');
-        setStep(1);
-        setAvailableNumbers([]);
+      } finally {
         setFetchingNumbers(false);
-        onClose();
-    };
+      }
+    } catch (error: any) {
+      console.error('Error validating credentials:', error);
+      setError(error.message || 'Failed to validate credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    if (!isOpen) return null;
+  const handleConnectNumber = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4" onClick={handleClose}>
-            <div
-                className="bg-darkbg text-slate-200 rounded-lg shadow-xl w-full max-w-2xl transform transition-all"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl font-bold">Connect Twilio Number</h2>
-                        <span className="text-sm text-slate-400">Step {step} of 2</span>
-                    </div>
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
-                    <p className="text-sm text-slate-400 mb-4">
-                        {step === 1
-                            ? 'Enter your Twilio Account SID and Auth Token to authenticate. You can find these in your Twilio Console.'
-                            : `Select a phone number from your Twilio account (${availableNumbers.length} number${availableNumbers.length !== 1 ? 's' : ''} available).`}
-                    </p>
+      if (!formData.phoneNumber) {
+        throw new Error('Phone number is required');
+      }
 
-                    {error && (
-                        <div className="mb-4 p-3 bg-red-900/30 border border-red-500 rounded text-red-200">
-                            ❌ {error}
-                        </div>
-                    )}
+      if (!formData.phoneNumber.startsWith('+')) {
+        throw new Error('Phone number must start with + (E.164 format)');
+      }
 
-                    {success && (
-                        <div className="mb-4 p-3 bg-green-900/30 border border-green-500 rounded text-green-200">
-                            {success}
-                        </div>
-                    )}
+      // Add the Twilio number with credentials (no verification needed)
+      const result = await twilioNumberService.addTwilioNumber(
+        user.id,
+        formData.phoneNumber,
+        formData.region,
+        formData.twilioAccountSid,
+        formData.twilioAuthToken
+      );
 
-                    <div className="space-y-4">
-                        {step === 1 ? (
-                            <>
-                                <div>
-                                    <label htmlFor="twilioAccountSid" className="block text-sm font-medium mb-1">
-                                        Twilio Account SID <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="twilioAccountSid"
-                                        name="twilioAccountSid"
-                                        value={formData.twilioAccountSid}
-                                        onChange={handleInputChange}
-                                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                        className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
-                                    />
-                                    <p className="mt-1 text-xs text-slate-400">
-                                        Find this in your Twilio Console under Account Info (starts with AC)
-                                    </p>
-                                </div>
+      setSuccess('✅ Twilio number connected and verified successfully!');
+      
+      setTimeout(() => {
+        onNumberAdded();
+        handleClose();
+      }, 1500);
+    } catch (error: any) {
+      console.error('Error connecting Twilio number:', error);
+      setError(error.message || 'Failed to connect Twilio number');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                                <div>
-                                    <label htmlFor="twilioAuthToken" className="block text-sm font-medium mb-1">
-                                        Twilio Auth Token <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="password"
-                                        id="twilioAuthToken"
-                                        name="twilioAuthToken"
-                                        value={formData.twilioAuthToken}
-                                        onChange={handleInputChange}
-                                        placeholder="Your Auth Token"
-                                        className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
-                                    />
-                                    <p className="mt-1 text-xs text-slate-400">
-                                        Your Auth Token is displayed in your Twilio Console. Keep this secure!
-                                    </p>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                {fetchingNumbers ? (
-                                    <div className="flex flex-col items-center justify-center py-8">
-                                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
-                                        <p className="text-slate-400">Fetching your Twilio phone numbers...</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div>
-                                            <label htmlFor="region" className="block text-sm font-medium mb-1">
-                                                Region <span className="text-red-500">*</span>
-                                            </label>
-                                            <select
-                                                id="region"
-                                                name="region"
-                                                value={formData.region}
-                                                onChange={handleInputChange}
-                                                className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
-                                            >
-                                                <option value="us-west">US West</option>
-                                                <option value="us-east">US East</option>
-                                                <option value="eu-central-1">EU Central</option>
-                                                <option value="ie">Ireland</option>
-                                                <option value="sg">Singapore</option>
-                                                <option value="au">Australia</option>
-                                            </select>
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                Select the region closest to your call destinations
-                                            </p>
-                                        </div>
+  const handleClose = () => {
+    setFormData({
+      twilioAccountSid: '',
+      twilioAuthToken: '',
+      phoneNumber: '',
+      region: 'us-west'
+    });
+    setError('');
+    setSuccess('');
+    setStep(1);
+    setAvailableNumbers([]);
+    setFetchingNumbers(false);
+    onClose();
+  };
 
-                                        <div>
-                                            <label htmlFor="phoneNumber" className="block text-sm font-medium mb-1">
-                                                Phone Number <span className="text-red-500">*</span>
-                                            </label>
-                                            <select
-                                                id="phoneNumber"
-                                                name="phoneNumber"
-                                                value={formData.phoneNumber}
-                                                onChange={handleInputChange}
-                                                className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
-                                            >
-                                                <option value="">-- Select a phone number --</option>
-                                                {availableNumbers.map((num) => (
-                                                    <option key={num.sid} value={num.phoneNumber}>
-                                                        {num.phoneNumber} {num.friendlyName ? `(${num.friendlyName})` : ''}
-                                                        {num.capabilities?.voice ? ' • Voice' : ''}
-                                                        {num.capabilities?.sms ? ' • SMS' : ''}
-                                                        {num.capabilities?.mms ? ' • MMS' : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                Select a phone number from your Twilio account to connect.
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
+  if (!isOpen) return null;
 
-                <div className="px-6 py-4 bg-darkbg-light flex justify-between items-center rounded-b-lg">
-                    <button
-                        onClick={step === 1 ? handleClose : () => setStep(1)}
-                        className="text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-700"
-                    >
-                        {step === 1 ? 'Cancel' : 'Back'}
-                    </button>
-                    <button
-                        onClick={step === 1 ? validateCredentials : handleConnectNumber}
-                        disabled={loading || (step === 1 && (!formData.twilioAccountSid || !formData.twilioAuthToken)) || (step === 2 && !formData.phoneNumber)}
-                        className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
-                    >
-                        {loading ? (step === 1 ? 'Validating...' : 'Connecting...') : (step === 1 ? 'Validate Credentials' : 'Connect Number')}
-                    </button>
-                </div>
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4" onClick={handleClose}>
+      <div
+        className="bg-darkbg text-slate-200 rounded-lg shadow-xl w-full max-w-2xl transform transition-all"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">Connect Twilio Number</h2>
+            <span className="text-sm text-slate-400">Step {step} of 2</span>
+          </div>
+          
+          <p className="text-sm text-slate-400 mb-4">
+            {step === 1 
+              ? 'Enter your Twilio Account SID and Auth Token to authenticate. You can find these in your Twilio Console.'
+              : `Select a phone number from your Twilio account (${availableNumbers.length} number${availableNumbers.length !== 1 ? 's' : ''} available).`}
+          </p>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-500 rounded text-red-200">
+              ❌ {error}
             </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-900/30 border border-green-500 rounded text-green-200">
+              {success}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {step === 1 ? (
+              <>
+                <div>
+                  <label htmlFor="twilioAccountSid" className="block text-sm font-medium mb-1">
+                    Twilio Account SID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="twilioAccountSid"
+                    name="twilioAccountSid"
+                    value={formData.twilioAccountSid}
+                    onChange={handleInputChange}
+                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">
+                    Find this in your Twilio Console under Account Info (starts with AC)
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="twilioAuthToken" className="block text-sm font-medium mb-1">
+                    Twilio Auth Token <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    id="twilioAuthToken"
+                    name="twilioAuthToken"
+                    value={formData.twilioAuthToken}
+                    onChange={handleInputChange}
+                    placeholder="Your Auth Token"
+                    className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">
+                    Your Auth Token is displayed in your Twilio Console. Keep this secure!
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                {fetchingNumbers ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                    <p className="text-slate-400">Fetching your Twilio phone numbers...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label htmlFor="region" className="block text-sm font-medium mb-1">
+                        Region <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="region"
+                        name="region"
+                        value={formData.region}
+                        onChange={handleInputChange}
+                        className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
+                      >
+                        <option value="us-west">US West</option>
+                        <option value="us-east">US East</option>
+                        <option value="eu-central-1">EU Central</option>
+                        <option value="ie">Ireland</option>
+                        <option value="sg">Singapore</option>
+                        <option value="au">Australia</option>
+                      </select>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Select the region closest to your call destinations
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="phoneNumber" className="block text-sm font-medium mb-1">
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="phoneNumber"
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={handleInputChange}
+                        className="w-full bg-darkbg-light border border-slate-600 rounded-md px-3 py-2 focus:ring-primary focus:border-primary"
+                      >
+                        <option value="">-- Select a phone number --</option>
+                        {availableNumbers.map((num) => (
+                          <option key={num.sid} value={num.phoneNumber}>
+                            {num.phoneNumber} {num.friendlyName ? `(${num.friendlyName})` : ''}
+                            {num.capabilities?.voice ? ' • Voice' : ''}
+                            {num.capabilities?.sms ? ' • SMS' : ''}
+                            {num.capabilities?.mms ? ' • MMS' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Select a phone number from your Twilio account to connect.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
-    );
+
+        <div className="px-6 py-4 bg-darkbg-light flex justify-between items-center rounded-b-lg">
+          <button
+            onClick={step === 1 ? handleClose : () => setStep(1)}
+            className="text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-700"
+          >
+            {step === 1 ? 'Cancel' : 'Back'}
+          </button>
+          <button
+            onClick={step === 1 ? validateCredentials : handleConnectNumber}
+            disabled={loading || (step === 1 && (!formData.twilioAccountSid || !formData.twilioAuthToken)) || (step === 2 && !formData.phoneNumber)}
+            className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {loading ? (step === 1 ? 'Validating...' : 'Connecting...') : (step === 1 ? 'Validate Credentials' : 'Connect Number')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const PhoneNoPage: React.FC = () => {
@@ -521,7 +521,6 @@ const PhoneNoPage: React.FC = () => {
     const [agents, setAgents] = useState<VoiceAgent[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [editingPhoneNumber, setEditingPhoneNumber] = useState<PhoneNumber | null>(null);
     const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -545,7 +544,7 @@ const PhoneNoPage: React.FC = () => {
             loadUserTwilioAccounts(); // Load user's Twilio accounts
         }
     }, [user]);
-
+    
     const loadUserTwilioAccounts = async () => {
         if (!user) return;
         try {
@@ -560,7 +559,7 @@ const PhoneNoPage: React.FC = () => {
             console.error('Error loading user Twilio accounts:', error);
         }
     };
-
+    
     const loadTwilioPhoneNumbers = async () => {
         if (!user) return;
         try {
@@ -570,7 +569,7 @@ const PhoneNoPage: React.FC = () => {
             console.error('Error loading Twilio phone numbers:', error);
         }
     };
-
+    
     const loadCallHistory = async () => {
         if (!user) return;
         try {
@@ -591,7 +590,7 @@ const PhoneNoPage: React.FC = () => {
             }
             const data = await phoneNumberService.getPhoneNumbers(user.id);
             console.log('Raw phone numbers from API:', data);
-
+            
             // Map database column names to frontend property names
             const mappedData = data.map((phone: any) => {
                 const mapped = {
@@ -627,18 +626,16 @@ const PhoneNoPage: React.FC = () => {
             // Don't show alert here as it might be confusing to show two alerts
         }
     };
-
+    
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (activeDropdown && !(event.target as Element).closest('.dropdown-menu') && !(event.target as Element).closest('.dropdown-trigger')) {
-                setActiveDropdown(null);
-            }
+        const handleClickOutside = () => {
+            setActiveDropdown(null);
         };
-        document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('click', handleClickOutside);
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('click', handleClickOutside);
         };
-    }, [activeDropdown]);
+    }, []);
 
     const formatDateTime = (isoString: string) => {
         if (!isoString) {
@@ -660,16 +657,7 @@ const PhoneNoPage: React.FC = () => {
 
     const handleToggleDropdown = (e: React.MouseEvent, numberId: string) => {
         e.stopPropagation();
-        if (activeDropdown === numberId) {
-            setActiveDropdown(null);
-        } else {
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            setDropdownPos({
-                top: rect.bottom + window.scrollY,
-                left: rect.right + window.scrollX - 224 // w-56 is 224px
-            });
-            setActiveDropdown(numberId);
-        }
+        setActiveDropdown(activeDropdown === numberId ? null : numberId);
     };
 
     const openEditModal = (phoneNumber: PhoneNumber) => {
@@ -684,66 +672,66 @@ const PhoneNoPage: React.FC = () => {
         setCallModalOpen(true);
         setActiveDropdown(null);
     };
-
+    
     const openMakeCallModal = (phoneNumber: any) => {
         setSelectedPhoneNumber({
-            ...phoneNumber,
+         ...phoneNumber,
             phoneNumber: phoneNumber.phoneNumber || phoneNumber.number || phoneNumber.phone_number
         } as PhoneNumber);
 
         setMakeCallModalOpen(true);
         setActiveDropdown(null);
     };
-
+    
     const handleMakeCall = async (from: string, to: string, agentId: string) => {
         if (!user) {
-            alert('User not authenticated');
-            return;
+          alert('User not authenticated');
+          return;
         }
-
+        
         // Validate user ID format (UUID)
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
-            alert('Invalid user ID. Please log in again.');
-            return;
+          alert('Invalid user ID. Please log in again.');
+          return;
         }
-
+        
         // Validate phone number formats
         if (!/^\+?[1-9]\d{1,14}$/.test(from)) {
-            alert('The "from" number must be a valid Twilio number in E.164 format (e.g., +1234567890)');
-            return;
+          alert('The "from" number must be a valid Twilio number in E.164 format (e.g., +1234567890)');
+          return;
         }
-
+        
         if (!/^\+?[1-9]\d{1,14}$/.test(to)) {
-            alert('Please enter a valid phone number in E.164 format (e.g., +1234567890)');
-            return;
+          alert('Please enter a valid phone number in E.164 format (e.g., +1234567890)');
+          return;
         }
-
+        
         // Validate agent ID format
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
-            alert('Please select a valid agent');
-            return;
+          alert('Please select a valid agent');
+          return;
         }
-
+        
         try {
-            const call = await twilioBasicService.makeCall(user.id, from, to, agentId);
-            alert(`Call initiated with agent! Call SID: ${call.callSid}`);
-            setMakeCallModalOpen(false);
-            setCallModalOpen(false); // Close both modals
-            loadCallHistory();
+          const call = await twilioBasicService.makeCall(user.id, from, to, agentId);
+          alert(`Call initiated with agent! Call SID: ${call.callSid}`);
+          setMakeCallModalOpen(false);
+          setCallModalOpen(false); // Close both modals
+          loadCallHistory();
         } catch (error: any) {
-            console.error('Error making call:', error);
-            // Provide more specific error messages to the user
-            let userMessage = error.message;
-            if (userMessage.includes('Twilio configuration error')) {
-                userMessage = 'Twilio configuration error. Please check your Twilio credentials in the settings.';
-            } else if (userMessage.includes('Connection error')) {
-                userMessage = 'Connection error. Please check your internet connection and try again.';
-            } else if (userMessage.includes('Validation error')) {
-                userMessage = 'Validation error. Please check that all fields are correctly filled.';
-            }
-
-            // Show a more detailed error message to the user
-            alert(`Failed to make call: ${userMessage}
+          console.error('Error making call:', error);
+          // Provide more specific error messages to the user
+          let userMessage = error.message;
+          if (userMessage.includes('Twilio configuration error')) {
+            userMessage = 'Twilio configuration error. Please check your Twilio credentials in the settings.';
+          } else if (userMessage.includes('Connection error')) {
+            userMessage = 'Connection error. Please check your internet connection and try again.';
+          } else if (userMessage.includes('Validation error')) {
+            userMessage = 'Validation error. Please check that all fields are correctly filled.';
+          }
+          
+          // Show a more detailed error message to the user
+          alert(`Failed to make call: ${userMessage}
 
 Please check that:
 1. The 'from' number is a verified Twilio number in your account
@@ -755,16 +743,16 @@ Please check that:
 
     const handleSaveAgentAssignment = async () => {
         if (!editingPhoneNumber) return;
-
+        
         try {
-            console.log('Saving agent assignment:', {
-                userId: user!.id,
-                phoneNumberId: editingPhoneNumber.id,
+            console.log('Saving agent assignment:', { 
+                userId: user!.id, 
+                phoneNumberId: editingPhoneNumber.id, 
                 selectedAgentId: selectedAgentId
             });
-
+            
             let updateData: Partial<any> = {};
-
+            
             if (!selectedAgentId) {
                 // Unassigning agent
                 updateData = {
@@ -782,9 +770,9 @@ Please check that:
                     agentName: selectedAgent.name
                 };
             }
-
+            
             const updatedPhoneNumber = await phoneNumberService.updatePhoneNumber(user!.id, editingPhoneNumber.id, updateData);
-
+            
             // Map the returned data to match frontend field names
             const mappedPhoneNumber = {
                 ...updatedPhoneNumber,
@@ -795,11 +783,11 @@ Please check that:
                 nextCycle: updatedPhoneNumber.next_cycle || updatedPhoneNumber.nextCycle,
                 twilioSid: updatedPhoneNumber.twilio_sid || updatedPhoneNumber.twilioSid
             };
-
-            setPhoneNumbers(phoneNumbers.map(pn =>
+            
+            setPhoneNumbers(phoneNumbers.map(pn => 
                 pn.id === editingPhoneNumber.id ? mappedPhoneNumber : pn
             ));
-
+            
             setEditModalOpen(false);
             setEditingPhoneNumber(null);
         } catch (error) {
@@ -807,7 +795,7 @@ Please check that:
             alert('Failed to update phone number: ' + (error as Error).message);
         }
     };
-
+    
     const handleDeleteNumber = async (numberId: string) => {
         if (window.confirm("Are you sure you want to delete this phone number?")) {
             try {
@@ -857,7 +845,7 @@ Please check that:
                         onClick={() => setImportModalOpen(true)}
                         className="btn-animate bg-white dark:bg-darkbg-light border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-darkbg text-slate-800 dark:text-slate-200 font-bold py-2 px-4 rounded-lg flex items-center transition"
                     >
-                        <ImportIcon className="h-5 w-5 mr-2" />
+                         <ImportIcon className="h-5 w-5 mr-2" />
                         <span className="hidden sm:inline">Import Number</span>
                         <span className="sm:hidden">Import</span>
                     </button>
@@ -878,7 +866,7 @@ Please check that:
                             </div>
                         </div>
                     </div>
-
+                    
                     <div className="bg-darkbg-light border border-slate-700 rounded-lg p-6">
                         <div className="flex items-center">
                             <div className="p-3 rounded-full bg-green-500/20">
@@ -892,7 +880,7 @@ Please check that:
                             </div>
                         </div>
                     </div>
-
+                    
                     <div className="bg-darkbg-light border border-slate-700 rounded-lg p-6">
                         <div className="flex items-center">
                             <div className="p-3 rounded-full bg-purple-500/20">
@@ -914,7 +902,7 @@ Please check that:
                         <h2 className="text-xl font-semibold text-white">Your Phone Numbers</h2>
                         <p className="text-slate-400 text-sm mt-1">Manage your connected phone numbers and assign voice agents</p>
                     </div>
-
+                    
                     {phoneNumbers.length === 0 ? (
                         <div className="text-center py-12">
                             <PhoneIcon className="mx-auto h-12 w-12 text-slate-400" />
@@ -971,7 +959,7 @@ Please check that:
                                                     {phoneNumber.agentId ? (
                                                         <div>
                                                             <div className="text-sm text-white">{phoneNumber.agentName}</div>
-                                                            <button
+                                                            <button 
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     openEditModal(phoneNumber);
@@ -982,7 +970,7 @@ Please check that:
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <button
+                                                        <button 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 openEditModal(phoneNumber);
@@ -1006,12 +994,40 @@ Please check that:
                                                     <div className="relative inline-block text-left">
                                                         <button
                                                             onClick={(e) => handleToggleDropdown(e, phoneNumber.id)}
-                                                            className="dropdown-trigger text-slate-400 hover:text-slate-200"
+                                                            className="text-slate-400 hover:text-slate-200"
                                                         >
-                                                            <svg className="h-5 w-5 pointer-events-none" fill="currentColor" viewBox="0 0 20 20">
+                                                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                                             </svg>
                                                         </button>
+                                                        
+                                                        {activeDropdown === phoneNumber.id && (
+                                                            <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-darkbg-light ring-1 ring-black ring-opacity-5 z-10">
+                                                                <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                                                                    <button
+                                                                        onClick={() => openCallModal(phoneNumber)}
+                                                                        className="block px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 w-full text-left"
+                                                                        role="menuitem"
+                                                                    >
+                                                                        Make Call
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => openEditModal(phoneNumber)}
+                                                                        className="block px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 w-full text-left"
+                                                                        role="menuitem"
+                                                                    >
+                                                                        Edit Agent
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteNumber(phoneNumber.id)}
+                                                                        className="block px-4 py-2 text-sm text-red-400 hover:bg-slate-700 w-full text-left"
+                                                                        role="menuitem"
+                                                                    >
+                                                                        Delete Number
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1030,7 +1046,7 @@ Please check that:
                             <h2 className="text-xl font-semibold text-white">Your Twilio Accounts</h2>
                             <p className="text-slate-400 text-sm mt-1">Manage phone numbers from your connected Twilio accounts</p>
                         </div>
-
+                        
                         <div className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {userTwilioAccounts.map((account) => (
@@ -1055,7 +1071,7 @@ Please check that:
                                     </div>
                                 ))}
                             </div>
-
+                            
                             <div className="mt-6">
                                 <button
                                     onClick={() => window.location.href = '/twilio-settings'}
@@ -1079,7 +1095,7 @@ Please check that:
                             <h2 className="text-xl font-semibold text-white">Recent Calls</h2>
                             <p className="text-slate-400 text-sm mt-1">Latest call activity from your phone numbers</p>
                         </div>
-
+                        
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-700">
                                 <thead className="bg-slate-800">
@@ -1099,11 +1115,12 @@ Please check that:
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{call.fromNumber}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{call.toNumber}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${call.status === 'completed' ? 'bg-green-900 text-green-300' :
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                        call.status === 'completed' ? 'bg-green-900 text-green-300' :
                                                         call.status === 'failed' ? 'bg-red-900 text-red-300' :
-                                                            call.status === 'busy' ? 'bg-yellow-900 text-yellow-300' :
-                                                                'bg-blue-900 text-blue-300'
-                                                        }`}>
+                                                        call.status === 'busy' ? 'bg-yellow-900 text-yellow-300' :
+                                                        'bg-blue-900 text-blue-300'
+                                                    }`}>
                                                         {call.status}
                                                     </span>
                                                 </td>
@@ -1124,44 +1141,8 @@ Please check that:
                 )}
             </main>
 
-            {activeDropdown && (() => {
-                const phoneNumber = phoneNumbers.find(p => p.id === activeDropdown);
-                if (!phoneNumber) return null;
-                return createPortal(
-                    <div
-                        className="dropdown-menu absolute w-56 rounded-md shadow-lg bg-darkbg-light ring-1 ring-black ring-opacity-5 z-50 border border-slate-700"
-                        style={{ top: `${dropdownPos.top}px`, left: `${dropdownPos.left}px` }}
-                    >
-                        <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <button
-                                onClick={() => openCallModal(phoneNumber)}
-                                className="block px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 w-full text-left"
-                                role="menuitem"
-                            >
-                                Make Call
-                            </button>
-                            <button
-                                onClick={() => openEditModal(phoneNumber)}
-                                className="block px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 w-full text-left"
-                                role="menuitem"
-                            >
-                                Edit Agent
-                            </button>
-                            <button
-                                onClick={() => handleDeleteNumber(phoneNumber.id)}
-                                className="block px-4 py-2 text-sm text-red-400 hover:bg-slate-700 w-full text-left"
-                                role="menuitem"
-                            >
-                                Delete Number
-                            </button>
-                        </div>
-                    </div>,
-                    document.body
-                );
-            })()}
-
             {/* Modals */}
-            <ImportPhoneNumberModal
+            <ImportPhoneNumberModal 
                 isOpen={isImportModalOpen}
                 onClose={() => setImportModalOpen(false)}
                 user={user}
@@ -1170,7 +1151,7 @@ Please check that:
                     setPhoneNumbers(prev => [...prev, newPhoneNumber]);
                 }}
             />
-
+            
             <ConnectTwilioNumberModal
                 isOpen={isAddTwilioModalOpen}
                 onClose={() => setAddTwilioModalOpen(false)}
@@ -1181,7 +1162,7 @@ Please check that:
                     loadTwilioPhoneNumbers();
                 }}
             />
-
+            
             {editingPhoneNumber && (
                 <Modal
                     isOpen={isEditModalOpen}
@@ -1200,7 +1181,7 @@ Please check that:
                                 {editingPhoneNumber.phoneNumber || editingPhoneNumber.number || editingPhoneNumber.phone_number}
                             </div>
                         </div>
-
+                        
                         <div>
                             <label htmlFor="agentSelect" className="block text-sm font-medium text-slate-300 mb-1">
                                 Select Voice Agent
@@ -1219,7 +1200,7 @@ Please check that:
                                 ))}
                             </select>
                         </div>
-
+                        
                         <div className="flex justify-end space-x-3 pt-4">
                             <button
                                 onClick={() => {
@@ -1240,7 +1221,7 @@ Please check that:
                     </div>
                 </Modal>
             )}
-
+            
             {selectedPhoneNumber && isCallModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-xl max-w-md w-full mx-4">
@@ -1260,7 +1241,7 @@ Please check that:
                     </div>
                 </div>
             )}
-
+            
             {selectedPhoneNumber && isMakeCallModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-xl max-w-md w-full mx-4">

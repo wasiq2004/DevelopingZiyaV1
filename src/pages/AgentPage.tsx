@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { VoiceAgent, VoiceAgentStatus } from '../types';
 import AgentDetailPage from './AgentDetailPage';
 import Modal from '../components/Modal';
@@ -13,18 +14,21 @@ const AgentPage: React.FC = () => {
     const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [agentToDelete, setAgentToDelete] = useState<VoiceAgent | null>(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
 
     useEffect(() => {
-        const handleClickOutside = () => {
-            setActiveDropdown(null);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (activeDropdown && !(event.target as Element).closest('.dropdown-menu') && !(event.target as Element).closest('.dropdown-trigger')) {
+                setActiveDropdown(null);
+            }
         };
-        window.addEventListener('click', handleClickOutside);
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            window.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, []);
+    }, [activeDropdown]);
 
     // Load agents when component mounts or user changes
     useEffect(() => {
@@ -42,7 +46,7 @@ const AgentPage: React.FC = () => {
             console.log('Loading agents for user:', user.id);
             const agentData = await agentService.getAgents(user.id);
             console.log('Agents loaded:', agentData);
-            
+
             // Validate agent data
             if (Array.isArray(agentData)) {
                 agentData.forEach((agent, index) => {
@@ -51,7 +55,7 @@ const AgentPage: React.FC = () => {
                     }
                 });
             }
-            
+
             setAgents(agentData);
         } catch (error) {
             console.error('Error loading agents:', error);
@@ -67,12 +71,12 @@ const AgentPage: React.FC = () => {
             alert('Agent name is required.');
             return;
         }
-        
+
         try {
             if (!user) {
                 throw new Error('User not authenticated');
             }
-            
+
             // Create a basic agent structure
             const newAgent: Omit<VoiceAgent, 'id' | 'createdDate'> = {
                 name: newAgentName,
@@ -117,7 +121,7 @@ const AgentPage: React.FC = () => {
             alert('Failed to create agent');
         }
     };
-    
+
     const handleCancelCreate = () => {
         setView('list');
         setNewAgentName('');
@@ -129,7 +133,7 @@ const AgentPage: React.FC = () => {
         const timePart = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
         return { date: datePart, time: timePart };
     };
-    
+
     const handleBackToList = () => {
         setSelectedAgent(null);
         // Reload agents to get the latest data
@@ -155,9 +159,18 @@ const AgentPage: React.FC = () => {
         }
     };
 
-    const handleToggleDropdown = (e: React.MouseEvent, agentId: string) => {
-        e.stopPropagation();
-        setActiveDropdown(activeDropdown === agentId ? null : agentId);
+    const handleToggleDropdown = (agentId: string, event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (activeDropdown === agentId) {
+            setActiveDropdown(null);
+        } else {
+            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+            setDropdownPos({
+                top: rect.bottom + window.scrollY,
+                left: rect.right + window.scrollX - 192 // w-48 is 192px
+            });
+            setActiveDropdown(agentId);
+        }
     };
 
     const handleEditAgent = (agent: VoiceAgent) => {
@@ -171,7 +184,7 @@ const AgentPage: React.FC = () => {
             if (!user) {
                 throw new Error('User not authenticated');
             }
-            
+
             const duplicatedAgentData: Omit<VoiceAgent, 'id' | 'createdDate'> = {
                 ...JSON.parse(JSON.stringify(agentToDuplicate)), // Deep copy
                 name: `${agentToDuplicate.name} (Copy)`,
@@ -186,7 +199,7 @@ const AgentPage: React.FC = () => {
             alert('Failed to duplicate agent');
         }
     };
-    
+
     const handleDuplicateAgentFromDetail = async (agent: VoiceAgent) => {
         const newAgent = await handleDuplicateAgent(agent);
         if (newAgent) {
@@ -194,7 +207,7 @@ const AgentPage: React.FC = () => {
             alert(`Agent "${newAgent.name}" has been created.`);
         }
     };
-    
+
     const handleDeleteRequest = (agentId: string) => {
         const agent = agents.find(a => a.id === agentId);
         if (agent) {
@@ -203,7 +216,7 @@ const AgentPage: React.FC = () => {
         }
         setActiveDropdown(null);
     };
-    
+
     const handleConfirmDelete = async () => {
         if (agentToDelete) {
             try {
@@ -253,7 +266,7 @@ const AgentPage: React.FC = () => {
                 <div className="p-6">
                     <h2 className="text-xl font-bold text-red-600">Invalid Agent Data</h2>
                     <p className="text-red-500">The selected agent is missing required information.</p>
-                    <button 
+                    <button
                         onClick={() => setSelectedAgent(null)}
                         className="mt-4 bg-primary text-white px-4 py-2 rounded-md"
                     >
@@ -262,14 +275,14 @@ const AgentPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // Ensure user is authenticated before rendering AgentDetailPage
         if (!user || !user.id) {
             return (
                 <div className="p-6">
                     <h2 className="text-xl font-bold text-red-600">Authentication Error</h2>
                     <p className="text-red-500">User not authenticated. Please log in again.</p>
-                    <button 
+                    <button
                         onClick={() => window.location.reload()}
                         className="mt-4 bg-primary text-white px-4 py-2 rounded-md"
                     >
@@ -278,11 +291,11 @@ const AgentPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         try {
-            return <AgentDetailPage 
-                agent={selectedAgent} 
-                onBack={handleBackToList} 
+            return <AgentDetailPage
+                agent={selectedAgent}
+                onBack={handleBackToList}
                 updateAgent={handleUpdateAgent}
                 onDuplicate={handleDuplicateAgentFromDetail}
                 onDelete={handleDeleteAgentFromDetail}
@@ -294,7 +307,7 @@ const AgentPage: React.FC = () => {
                 <div className="p-6">
                     <h2 className="text-xl font-bold text-red-600">Error loading agent details</h2>
                     <p className="text-red-500">{error instanceof Error ? error.message : 'Unknown error'}</p>
-                    <button 
+                    <button
                         onClick={() => setSelectedAgent(null)}
                         className="mt-4 bg-primary text-white px-4 py-2 rounded-md"
                     >
@@ -353,7 +366,7 @@ const AgentPage: React.FC = () => {
 
     return (
         <>
-             <div className="flex items-center justify-end mb-8 gap-2 animate-slide-down">
+            <div className="flex items-center justify-end mb-8 gap-2 animate-slide-down">
                 <button
                     onClick={() => setView('create')}
                     className="btn-animate bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
@@ -362,7 +375,7 @@ const AgentPage: React.FC = () => {
                 </button>
             </div>
 
-            <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-md overflow-x-auto card-animate animate-fade-in">
+            <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-md overflow-x-auto card-animate animate-fade-in relative">
                 <div className="min-w-[700px]">
                     <div className="flex px-3 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-semibold tracking-wider">
                         <div className="w-[40%]">Name</div>
@@ -380,7 +393,7 @@ const AgentPage: React.FC = () => {
                                 <div className="w-[40%] font-medium text-slate-800 dark:text-slate-100 pr-4 text-xs sm:text-sm">
                                     {agent.name}
                                 </div>
-                                
+
                                 <div className="w-[30%] text-xs sm:text-sm">
                                     <div className="text-slate-800 dark:text-slate-100">{formatDateTime(agent.createdDate).date}</div>
                                     <div className="text-slate-500 dark:text-slate-400 text-xs">{formatDateTime(agent.createdDate).time}</div>
@@ -392,39 +405,57 @@ const AgentPage: React.FC = () => {
                                 </div>
 
                                 <div className="w-[10%] flex justify-end relative">
-                                    <button onClick={(e) => handleToggleDropdown(e, agent.id)} className="p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors transform hover:scale-110">
-                                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+                                    <button onClick={(e) => handleToggleDropdown(agent.id, e)} className="dropdown-trigger p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors transform hover:scale-110">
+                                        <svg className="w-5 h-5 pointer-events-none" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
                                     </button>
-                                    {activeDropdown === agent.id && (
-                                        <div
-                                            className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-darkbg-light border border-slate-200 dark:border-slate-700 rounded-md shadow-lg z-50"
-                                            onClick={(e) => e.stopPropagation()} 
-                                        >
-                                            <ul className="py-1">
-                                                <li>
-                                                    <button type="button" onClick={(e) => { e.stopPropagation(); handleEditAgent(agent); }} className="w-full text-left block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg">
-                                                        Edit
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button type="button" onClick={(e) => { e.stopPropagation(); handleDuplicateAgent(agent); }} className="w-full text-left block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg">
-                                                        Duplicate
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteRequest(agent.id); }} className="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-darkbg">
-                                                        Delete
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
+
+            {activeDropdown && (() => {
+                const agent = agents.find(a => a.id === activeDropdown);
+                if (!agent) return null;
+                return createPortal(
+                    <div
+                        className="dropdown-menu absolute w-48 bg-white dark:bg-darkbg-light rounded-md shadow-lg z-50 border border-slate-200 dark:border-slate-700"
+                        style={{ top: `${dropdownPos.top}px`, left: `${dropdownPos.left}px` }}
+                    >
+                        <div className="py-1">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditAgent(agent);
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                Edit
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDuplicateAgent(agent);
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                Duplicate
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteRequest(agent.id);
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>,
+                    document.body
+                );
+            })()}
 
             <Modal
                 isOpen={isDeleteModalOpen}

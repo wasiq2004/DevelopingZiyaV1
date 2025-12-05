@@ -1,6 +1,6 @@
 import { getAuthToken } from '../utils/auth';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/api` : 'https://ziyavoice-production.up.railway.app/api';
 
 interface Document {
   id: string;

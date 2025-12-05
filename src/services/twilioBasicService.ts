@@ -162,7 +162,43 @@ export const twilioBasicService = {
   },
 
   // Make Outbound Call
-  async makeCall(userId: string, from: string, to: string, agentId?: string): Promise<TwilioCall> {
+  async makeCall(userId: string, from: string, to: string, agentId: string): Promise<TwilioCall> {
+    // Validate required parameters
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+    
+    // Validate user ID format (UUID)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new Error('User ID must be a valid UUID');
+    }
+    
+    if (!from) {
+      throw new Error('From number is required');
+    }
+    
+    if (!to) {
+      throw new Error('To number is required');
+    }
+    
+    if (!agentId) {
+      throw new Error('Agent ID is required');
+    }
+    
+    // Validate phone number formats
+    if (!/^\+?[1-9]\d{1,14}$/.test(from)) {
+      throw new Error('From number must be a valid Twilio number in E.164 format (e.g., +1234567890)');
+    }
+    
+    if (!/^\+?[1-9]\d{1,14}$/.test(to)) {
+      throw new Error('To number must be in E.164 format (e.g., +1234567890)');
+    }
+    
+    // Validate agent ID format
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
+      throw new Error('Agent ID must be a valid UUID');
+    }
+    
     try {
       const response = await fetch(`${getApiBaseUrl()}/twilio/make-call`, {
         method: 'POST',
@@ -173,13 +209,20 @@ export const twilioBasicService = {
           userId,
           from,
           to,
-          ...(agentId && { agentId })
+          agentId
         }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to make call');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // If we can't parse JSON, get text response
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text}`);
+        }
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
@@ -190,7 +233,22 @@ export const twilioBasicService = {
       return result.data;
     } catch (error) {
       console.error('Error making call:', error);
-      throw new Error('Failed to make call: ' + (error as Error).message);
+      // Provide more context about what went wrong
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your internet connection.');
+      }
+      
+      // Provide more specific error messages based on the error type
+      let errorMessage = (error as Error).message;
+      if (errorMessage.includes('Twilio configuration error')) {
+        errorMessage = 'Twilio configuration error: ' + errorMessage;
+      } else if (errorMessage.includes('Connection error')) {
+        errorMessage = 'Connection error: ' + errorMessage;
+      } else if (errorMessage.includes('Validation error')) {
+        errorMessage = 'Validation error: ' + errorMessage;
+      }
+      
+      throw new Error(errorMessage);
     }
   },
 

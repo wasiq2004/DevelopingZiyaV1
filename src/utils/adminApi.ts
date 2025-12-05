@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = 'https://ziyavoice-production.up.railway.app/api';
 
 export interface Admin {
   id: string;
@@ -58,15 +58,21 @@ export interface DashboardStats {
 
 // Admin Authentication
 export const adminLogin = async (email: string, password: string): Promise<Admin> => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+  const response = await fetch(`${API_BASE_URL}/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
 
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Login failed');
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Login failed');
   }
 
   const data = await response.json();
@@ -75,8 +81,14 @@ export const adminLogin = async (email: string, password: string): Promise<Admin
 
 // Get dashboard statistics
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/stats`);
+  const response = await fetch(`${API_BASE_URL}/admin/stats`);
   
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to fetch dashboard stats');
   }
@@ -93,8 +105,14 @@ export const getUsers = async (page: number = 1, limit: number = 50, search: str
     search
   });
 
-  const response = await fetch(`${API_BASE_URL}/api/admin/users?${params}`);
+  const response = await fetch(`${API_BASE_URL}/admin/users?${params}`);
   
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to fetch users');
   }
@@ -108,8 +126,14 @@ export const getUsers = async (page: number = 1, limit: number = 50, search: str
 
 // Get user details
 export const getUserDetails = async (userId: string) => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`);
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`);
   
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to fetch user details');
   }
@@ -132,7 +156,7 @@ export const setServiceLimit = async (
   isEnabled: boolean,
   adminId: string
 ) => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/limits`, {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/limits`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -144,6 +168,12 @@ export const setServiceLimit = async (
     })
   });
 
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to set service limit');
   }
@@ -153,8 +183,14 @@ export const setServiceLimit = async (
 
 // Get service limits
 export const getServiceLimits = async (userId: string) => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/limits`);
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/limits`);
   
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
+
   if (!response.ok) {
     throw new Error('Failed to fetch service limits');
   }
@@ -176,7 +212,7 @@ export const createBillingRecord = async (
   platformFee: number,
   adminId: string
 ) => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/billing`, {
+  const response = await fetch(`${API_BASE_URL}/admin/billing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -188,6 +224,12 @@ export const createBillingRecord = async (
       adminId
     })
   });
+
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
 
   if (!response.ok) {
     throw new Error('Failed to create billing record');
@@ -203,7 +245,7 @@ export const updateBillingStatus = async (
   notes: string,
   adminId: string
 ) => {
-  const response = await fetch(`${API_BASE_URL}/api/admin/billing/${billingId}`, {
+  const response = await fetch(`${API_BASE_URL}/admin/billing/${billingId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -212,6 +254,12 @@ export const updateBillingStatus = async (
       adminId
     })
   });
+
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
 
   if (!response.ok) {
     throw new Error('Failed to update billing status');

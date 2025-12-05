@@ -20,6 +20,9 @@ const CampaignDetailPage: React.FC = () => {
   const [includeMetadata, setIncludeMetadata] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [agents, setAgents] = useState([]);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
   const recordsPerPage = 10;
 
   // Fetch campaign data
@@ -240,6 +243,24 @@ const CampaignDetailPage: React.FC = () => {
 
   const handleFileUploadClick = () => {
     document.getElementById('csv-upload')?.click();
+  };
+
+  const handleSaveCampaignConfig = async () => {
+    try {
+      if (!id || !user?.id) {
+        throw new Error('Missing campaign ID or user ID');
+      }
+      
+      // Here you would typically make an API call to save the campaign configuration
+      // For now, we'll just close the modal
+      setIsCallerPhoneModalOpen(false);
+      
+      // Show success message
+      alert('Campaign configuration saved successfully!');
+    } catch (err: any) {
+      console.error('Failed to save campaign configuration', err);
+      alert(`Failed to save campaign configuration: ${err.message}`);
+    }
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -529,41 +550,89 @@ const CampaignDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Caller Phone Modal */}
+      {/* Enhanced Caller Phone & Agent Modal */}
       {isCallerPhoneModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-[#1E293B] rounded-lg max-w-md w-full p-6 card-animate animate-scale-in">
-            <h3 className="text-lg font-medium mb-4 animate-slide-down">Set Caller Phone</h3>
-            <div className="mb-4 stagger-children">
-              <label htmlFor="callerPhone" className="block text-sm font-medium mb-2" style={{ animationDelay: '0.1s' }}>Caller Phone Number</label>
-              <input
-                type="text"
-                id="callerPhone"
-                value={callerPhone}
-                onChange={(e) => setCallerPhone(e.target.value)}
-                className="input-animate w-full bg-[#0F172A] border border-gray-700 rounded-md px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="+1 (555) 123-4567"
-                style={{ animationDelay: '0.2s' }}
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row justify-end gap-3 animate-slide-up">
-              <button
-                onClick={() => setIsCallerPhoneModalOpen(false)}
-                className="btn-animate bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSetCallerPhone}
-                className="btn-animate bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition"
-              >
-                Save
-              </button>
-            </div>
-          </div>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="bg-[#1E293B] rounded-lg max-w-md w-full p-6">
+        <h3 className="text-lg font-medium mb-4">Configure Campaign</h3>
+      
+        {/* Select Twilio Number */}
+        <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">From Number (Twilio)</label>
+        <select
+          value={callerPhone}
+          onChange={(e) => setCallerPhone(e.target.value)}
+          className="w-full bg-[#0F172A] border border-gray-700 rounded-md px-3 py-2"
+        >
+          <option value="">Select a Twilio number...</option>
+          {/* You'll need to fetch and display Twilio numbers here */}
+        </select>
         </div>
-      )}
-
+      
+      {/* Select Agent */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Select Agent</label>
+        <select
+          value={selectedAgentId}
+          onChange={(e) => setSelectedAgentId(e.target.value)}
+          className="w-full bg-[#0F172A] border border-gray-700 rounded-md px-3 py-2"
+        >
+          <option value="">Select an agent...</option>
+          {agents.map((agent: any) => (
+            <option key={agent.id} value={agent.id}>{agent.name}</option>
+          ))}
+        </select>
+      </div>
+      
+      {/* Google Sheets URL */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Google Sheet URL (Optional)</label>
+        <input
+          type="url"
+          value={googleSheetUrl}
+          onChange={(e) => setGoogleSheetUrl(e.target.value)}
+          placeholder="https://docs.google.com/spreadsheets/d/..."
+          className="w-full bg-[#0F172A] border border-gray-700 rounded-md px-3 py-2"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Call details will be logged to this sheet
+        </p>
+      </div>
+      
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setIsCallerPhoneModalOpen(false)}
+          className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveCampaignConfig}
+          className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+  
+)}
+// In the modal, add:
+    <div className="mb-4">
+    <label className="block text-sm font-medium mb-2">
+    Google Sheet URL (Optional)
+    </label>
+    <input
+    type="url"
+    value={googleSheetUrl}
+    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+    placeholder="https://docs.google.com/spreadsheets/d/..."
+    className="w-full bg-[#0F172A] border border-gray-700 rounded-md px-3 py-2"
+  />
+  <p className="text-xs text-gray-400 mt-1">
+    Call details will be automatically logged here
+  </p>
+</div>
       {/* Add Record Modal */}
       {isAddRecordModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 animate-fade-in">

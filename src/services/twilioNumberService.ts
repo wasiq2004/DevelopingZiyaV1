@@ -10,6 +10,17 @@ export interface TwilioNumber {
   createdAt: string;
 }
 
+export interface TwilioAccountNumber {
+  phoneNumber: string;
+  friendlyName: string;
+  sid: string;
+  capabilities: {
+    voice: boolean;
+    sms: boolean;
+    mms: boolean;
+  };
+}
+
 export const twilioNumberService = {
   // Add a Twilio number
   async addTwilioNumber(
@@ -53,6 +64,49 @@ export const twilioNumberService = {
     } catch (error) {
       console.error('Error adding Twilio number:', error);
       throw new Error('Failed to add Twilio number: ' + (error as Error).message);
+    }
+  },
+
+  // Add a phone number from user's Twilio account
+  async addAccountNumber(
+    userId: string,
+    accountSid: string,
+    phoneNumber: string,
+    region: string
+  ): Promise<{ id: string; verificationCode: string }> {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/twilio/add-account-number`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          accountSid,
+          phoneNumber,
+          region
+        }),
+      });
+
+      if (!response.ok) {
+        let error;
+        try {
+          error = await response.json();
+        } catch {
+          error = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        throw new Error(error.message || 'Failed to add phone number from account');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to add phone number from account');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('Error adding phone number from account:', error);
+      throw new Error('Failed to add phone number from account: ' + (error as Error).message);
     }
   },
 
@@ -107,7 +161,16 @@ export const twilioNumberService = {
         throw new Error(result.message || 'Failed to fetch Twilio numbers');
       }
 
-      return result.data;
+      // FIXED MAPPING
+      return (result.data || []).map((num: any) => ({
+        id: num.id,
+        userId: num.user_id,
+        phoneNumber: num.phone_number || num.number,
+        region: num.region,
+        provider: num.provider,
+        verified: num.verified,
+        createdAt: num.created_at
+      }));
     } catch (error) {
       console.error('Error fetching Twilio numbers:', error);
       throw new Error('Failed to fetch Twilio numbers');
@@ -180,6 +243,39 @@ export const twilioNumberService = {
       console.error('Error fetching available numbers:', error);
       throw new Error('Failed to fetch available numbers: ' + (error as Error).message);
     }
+  },
+
+  // Fetch phone numbers from user's Twilio account
+  async fetchAccountNumbers(
+    userId: string,
+    accountSid: string
+  ): Promise<TwilioAccountNumber[]> {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/twilio/fetch-account-numbers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          accountSid
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch account numbers');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch account numbers');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('Error fetching account numbers:', error);
+      throw new Error('Failed to fetch account numbers: ' + (error as Error).message);
+    }
   }
 };
-

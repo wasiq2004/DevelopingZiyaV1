@@ -258,6 +258,19 @@ CREATE TABLE IF NOT EXISTS call_segments (
   FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
 );
 
+-- Create user_twilio_accounts table for storing user's Twilio accounts
+CREATE TABLE IF NOT EXISTS user_twilio_accounts (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  account_sid VARCHAR(100) NOT NULL,
+  auth_token VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_account (user_id, account_sid)
+);
+
 -- Create indexes for new tables
 CREATE INDEX idx_user_twilio_numbers_user_id ON user_twilio_numbers(user_id);
 CREATE INDEX idx_user_twilio_numbers_phone ON user_twilio_numbers(phone_number);
@@ -266,3 +279,5 @@ CREATE INDEX idx_calls_campaign_id ON calls(campaign_id);
 CREATE INDEX idx_calls_twilio_number_id ON calls(twilio_number_id);
 CREATE INDEX idx_call_segments_call_id ON call_segments(call_id);
 CREATE INDEX idx_call_segments_timestamp ON call_segments(timestamp);
+CREATE INDEX idx_user_twilio_accounts_user_id ON user_twilio_accounts(user_id);
+CREATE INDEX idx_user_twilio_accounts_account_sid ON user_twilio_accounts(account_sid);

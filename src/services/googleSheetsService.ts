@@ -32,7 +32,7 @@ export class GoogleSheetsService {
   async appendDataToSheet(data: Record<string, any>, sheetName?: string): Promise<boolean> {
     try {
       // Call the backend API to append data to Google Sheets
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/google-sheets/append`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://ziyavoice-production.up.railway.app'}/tools/google-sheets/append`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

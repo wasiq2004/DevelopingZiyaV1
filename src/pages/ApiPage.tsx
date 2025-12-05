@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
-import { apiKeyService } from '../services/apiKeyService';
-import { fetchRealCreditBalances } from '../services/realCreditService';
 
 interface ApiInputProps {
     label: string;
@@ -78,37 +76,6 @@ const ApiPage: React.FC = () => {
             description: 'Required for both Speech-to-Text and Text-to-Speech services.' 
         }
     ];
-    
-    // Load user's API keys when component mounts
-    useEffect(() => {
-        if (user) {
-            loadUserApiKeys();
-        }
-    }, [user]);
-
-    const loadUserApiKeys = async () => {
-        if (!user) return;
-        
-        try {
-            setLoading(true);
-            const keys = await apiKeyService.getUserApiKeys(user.id);
-            setUserApiKeys(keys);
-            
-            // Initialize apiKeys state with empty strings for services that don't have keys yet
-            const initialApiKeys: Record<string, string> = {};
-            apiServices.forEach(service => {
-                if (!service.isEnvironmentVariable) {
-                    const existingKey = keys.find((key: UserApiKey) => key.serviceName === service.id);
-                    initialApiKeys[service.id] = existingKey ? '' : ''; // Show empty string if exists, so user can update
-                }
-            });
-            setApiKeys(initialApiKeys);
-        } catch (error) {
-            console.error('Failed to load API keys:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -119,52 +86,6 @@ const ApiPage: React.FC = () => {
         e.preventDefault();
         if (!user) return;
         
-        try {
-            setLoading(true);
-            setSaveStatus('');
-            
-            // Track which services had keys updated
-            const updatedServices: string[] = [];
-            
-            // Save each non-empty API key
-            const savePromises: Promise<void>[] = Object.entries(apiKeys).map(async ([serviceName, apiKey]) => {
-                // Only save if the key is not empty
-                if (apiKey) {
-                    await apiKeyService.saveUserApiKey(user.id, serviceName as string, apiKey as string);
-                    updatedServices.push(serviceName);
-                }
-                return Promise.resolve();
-            });
-            
-            await Promise.all(savePromises);
-            
-            // If any keys were updated, refresh the credits for those services
-            if (updatedServices.length > 0) {
-                // Notify the Credits page to refresh by storing a flag in localStorage
-                localStorage.setItem('apiKeysUpdated', JSON.stringify({
-                    timestamp: Date.now(),
-                    services: updatedServices
-                }));
-                
-                // Dispatch a custom event to notify other components
-                window.dispatchEvent(new CustomEvent('apiKeysUpdated', {
-                    detail: { services: updatedServices }
-                }));
-            }
-            
-            // Reload the keys to show updated state
-            await loadUserApiKeys();
-            
-            setSaveStatus('✅ API Keys saved successfully!');
-        } catch (error) {
-            console.error('Failed to save API keys:', error);
-            setSaveStatus('❌ Failed to save API Keys.');
-        } finally {
-            setLoading(false);
-            setTimeout(() => setSaveStatus(''), 3000);
-        }
-    };
-
     return (
         <>
             <Header title="API & Integrations" />
@@ -219,5 +140,5 @@ const ApiPage: React.FC = () => {
     );
 
 };
-
+}
 export default ApiPage;

@@ -200,7 +200,7 @@ export const AVAILABLE_VOICES: { [key: string]: { id: string, name: string }[] }
 // Function to fetch voices dynamically
 export const fetchAvailableVoices = async (): Promise<{ [key: string]: { id: string, name: string }[] }> => {
     try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const apiBaseUrl = 'https://ziyavoice-production.up.railway.app/api';
         const response = await fetch(`${apiBaseUrl}/voices/elevenlabs`);
         const result = await response.json();
         

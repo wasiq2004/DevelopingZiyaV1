@@ -1,578 +1,348 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
-import { creditService, CreditTransaction } from '../services/creditService';
-import { apiKeyService } from '../services/apiKeyService';
-import { fetchRealCreditBalances } from '../services/realCreditService';
 
-const CreditsPage: React.FC = () => {
+interface Transaction {
+  id: string;
+  type: 'credit' | 'debit';
+  amount: number;
+  balanceAfter: number;
+  service: string | null;
+  description: string;
+  createdAt: string;
+}
+
+interface UsageStat {
+  service: string;
+  totalUnits: number;
+  totalCost: number;
+  usageCount: number;
+}
+
+interface Pricing {
+  service_type: string;
+  cost_per_unit: number;
+  unit_type: string;
+  description: string;
+}
+
+const WalletPage: React.FC = () => {
   const { user } = useAuth();
-  const [credits, setCredits] = useState({
-    elevenlabs: null as number | null,
-    gemini: null as number | null,
-    twilio: null as number | null,
-    deepgram: null as number | null
-  });
-  const [configuredKeys, setConfiguredKeys] = useState({
-    elevenlabs: false,
-    gemini: false,
-    deepgram: false
-  });
-  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [usageStats, setUsageStats] = useState<UsageStat[]>([]);
+  const [pricing, setPricing] = useState<Pricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Modal states
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showApiKey, setShowApiKey] = useState<{service: 'elevenlabs' | 'gemini', key: string} | null>(null);
-  
-  // Form states
-  const [purchaseAmount, setPurchaseAmount] = useState(0);
-  const [purchaseService, setPurchaseService] = useState<'gemini' | 'elevenlabs' | 'platform'>('platform');
-  const [deleteService, setDeleteService] = useState<'elevenlabs' | 'gemini'>('elevenlabs');
+
 
   useEffect(() => {
-    if (user) {
-      loadData();
+    if (user?.id) {
+      fetchWalletData();
     }
   }, [user]);
 
-  // Listen for API key updates from other components
-  useEffect(() => {
-    const handleApiKeysUpdated = (event: CustomEvent) => {
-      console.log('API keys updated, refreshing credits');
-      fetchRealCredits();
-      checkConfiguredKeys();
-    };
+  const fetchWalletData = async () => {
+    try {
+      setLoading(true);
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-    // Add event listener
-    window.addEventListener('apiKeysUpdated', handleApiKeysUpdated as EventListener);
-
-    // Check for recent API key updates in localStorage
-    const apiKeysUpdated = localStorage.getItem('apiKeysUpdated');
-    if (apiKeysUpdated) {
-      try {
-        const updateInfo = JSON.parse(apiKeysUpdated);
-        // If the update was recent (within last 5 seconds), refresh credits
-        if (Date.now() - updateInfo.timestamp < 5000) {
-          fetchRealCredits();
-          checkConfiguredKeys();
-        }
-        // Clean up the flag
-        localStorage.removeItem('apiKeysUpdated');
-      } catch (e) {
-        console.error('Error parsing apiKeysUpdated data:', e);
+      // Fetch balance
+      const balanceRes = await fetch(`${apiUrl}/api/wallet/balance/${user.id}`);
+      const balanceData = await balanceRes.json();
+      if (balanceData.success) {
+        setBalance(balanceData.balance);
       }
-    }
 
-    // Cleanup event listener
-    return () => {
-      window.removeEventListener('apiKeysUpdated', handleApiKeysUpdated as EventListener);
-    };
-  }, [user]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([
-        fetchRealCredits(),
-        fetchTransactions(),
-        checkConfiguredKeys()
-      ]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkConfiguredKeys = async () => {
-    if (!user) return;
-    
-    try {
-      const apiKeys = await apiKeyService.getUserApiKeys(user.id);
-      const elevenlabsConfigured = apiKeys.some(key => key.serviceName === '11labs');
-      const geminiConfigured = apiKeys.some(key => key.serviceName === 'gemini');
-      const deepgramConfigured = apiKeys.some(key => key.serviceName === 'deepgram');
-      
-      setConfiguredKeys({
-        elevenlabs: elevenlabsConfigured,
-        gemini: geminiConfigured,
-        deepgram: deepgramConfigured
-      });
-    } catch (err: any) {
-      console.error('Error checking configured API keys:', err);
-    }
-  };
-
-  const fetchRealCredits = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      // Fetch credits using the new simplified function
-      const creditBalances = await fetchRealCreditBalances(user.id);
-      
-      setCredits({
-        elevenlabs: creditBalances.elevenlabsCredits,
-        gemini: creditBalances.geminiCredits,
-        twilio: creditBalances.twilioCredits,
-        deepgram: creditBalances.deepgramCredits
-      });
-      
-      // Check configured keys after fetching credits
-      await checkConfiguredKeys();
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch real credits');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTransactions = async () => {
-    if (!user) return;
-    
-    try {
-      const userTransactions = await creditService.getCreditTransactions(user.id);
-      setTransactions(userTransactions);
-      setError(''); // Clear any previous errors
-    } catch (err: any) {
-      console.error('Error fetching transactions:', err);
-      setError(err.message || 'Failed to fetch credit transactions');
-      // Don't block the whole page if transactions fail - just show empty list
-      setTransactions([]);
-    }
-  };
-
-  const handlePurchase = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      // In a real implementation, you would call the purchase API
-      // For now, we'll just refresh the data
-      await loadData();
-      setShowPurchaseModal(false);
-      setPurchaseAmount(0);
-    } catch (err: any) {
-      setError(err.message || 'Failed to purchase credits');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteApiKey = async (service: 'elevenlabs' | 'gemini') => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      await apiKeyService.deleteUserApiKey(user.id, service === 'elevenlabs' ? '11labs' : 'gemini');
-      
-      // Update the configured keys state
-      setConfiguredKeys(prev => ({
-        ...prev,
-        [service]: false
-      }));
-      
-      // Reset the credits for this service
-      setCredits(prev => ({
-        ...prev,
-        [service]: null
-      }));
-      
-      // Close the confirmation dialog
-      setShowDeleteConfirm(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete API key');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openDeleteConfirm = (service: 'elevenlabs' | 'gemini') => {
-    setDeleteService(service);
-    setShowDeleteConfirm(true);
-  };
-
-  const handleShowApiKey = async (service: 'elevenlabs' | 'gemini') => {
-    if (!user) return;
-    
-    try {
-      const serviceName = service === 'elevenlabs' ? '11labs' : 'gemini';
-      const apiKey = await apiKeyService.getUserApiKey(user.id, serviceName);
-      if (apiKey) {
-        setShowApiKey({ service, key: apiKey });
+      // Fetch transactions
+      const txRes = await fetch(`${apiUrl}/api/wallet/transactions/${user.id}?limit=50`);
+      const txData = await txRes.json();
+      if (txData.success) {
+        setTransactions(txData.transactions);
       }
+
+      // Fetch usage stats
+      const statsRes = await fetch(`${apiUrl}/api/wallet/usage-stats/${user.id}`);
+      const statsData = await statsRes.json();
+      if (statsData.success) {
+        setUsageStats(statsData.stats);
+      }
+
+      // Fetch pricing
+      const pricingRes = await fetch(`${apiUrl}/api/wallet/pricing`);
+      const pricingData = await pricingRes.json();
+      if (pricingData.success) {
+        setPricing(pricingData.pricing);
+      }
+
+      setError('');
     } catch (err: any) {
-      console.error('Error fetching API key:', err);
-      setError(err.message || 'Failed to fetch API key');
+      console.error('Error fetching wallet data:', err);
+      setError(err.message || 'Failed to load wallet data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatServiceName = (service: string) => {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getServiceIcon = (service: string) => {
     switch (service) {
-      case 'gemini': return 'Google Gemini';
-      case 'elevenlabs': return 'ElevenLabs';
-      case 'platform': return 'Platform';
-      default: return service;
+      case 'elevenlabs':
+        return '🔊';
+      case 'deepgram':
+        return '🎤';
+      case 'gemini':
+        return '🤖';
+      default:
+        return '💰';
     }
   };
 
-  const formatTransactionType = (type: string) => {
-    switch (type) {
-      case 'purchase': return 'Purchase';
-      case 'usage': return 'Usage';
-      default: return type;
+  const getServiceColor = (service: string) => {
+    switch (service) {
+      case 'elevenlabs':
+        return 'from-blue-500 to-blue-600';
+      case 'deepgram':
+        return 'from-orange-500 to-orange-600';
+      case 'gemini':
+        return 'from-purple-500 to-purple-600';
+      default:
+        return 'from-gray-500 to-gray-600';
     }
   };
 
-  if (loading && !credits) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-lightbg dark:bg-darkbg flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-lightbg dark:bg-darkbg p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
-          <p className="text-red-700 dark:text-red-300">{error}</p>
-        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <Header title="Credits & Usage">
-        <button
-          onClick={() => setShowPurchaseModal(true)}
-          className="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 btn-animate w-full sm:w-auto"
-        >
-          Buy More Credits
-        </button>
+      <Header title="Wallet & Usage">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          Contact admin to add credits
+        </div>
       </Header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 stagger-children">
-        {/* ElevenLabs Credits */}
-        <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-4 md:p-6 card-animate">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-base md:text-lg font-medium text-slate-800 dark:text-white">ElevenLabs Credits</h3>
-              <p className="text-xs md:text-sm text-slate-500 mt-1">For text-to-speech</p>
-              <p className="text-2xl md:text-3xl font-bold mt-2 text-blue-600 dark:text-blue-400 animate-pulse-soft">
-                {credits.elevenlabs !== null ? (
-                  typeof credits.elevenlabs === 'number' ? 
-                    credits.elevenlabs.toLocaleString() : 
-                    <span className="text-blue-500">{credits.elevenlabs}</span>
-                ) : (
-                  configuredKeys.elevenlabs ? (
-                    <span className="text-blue-500">Key configured, credits unavailable</span>
-                  ) : (
-                    <span className="text-gray-500">No API key configured</span>
-                  )
-                )}
-              </p>
-            </div>
-            {configuredKeys.elevenlabs && (
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => handleShowApiKey('elevenlabs')}
-                  className="text-blue-500 hover:text-blue-700 transition-all duration-300 transform hover:scale-125"
-                  title="Show API Key"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </button>
-                <button 
-                  onClick={() => openDeleteConfirm('elevenlabs')}
-                  className="text-red-500 hover:text-red-700 transition-all duration-300 transform hover:scale-125"
-                  title="Delete API Key"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-700 dark:text-red-300">{error}</p>
         </div>
+      )}
 
-        {/* Gemini Credits */}
-        <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-4 md:p-6 card-animate">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-base md:text-lg font-medium text-slate-800 dark:text-white">Gemini Credits</h3>
-              <p className="text-xs md:text-sm text-slate-500 mt-1">For AI processing</p>
-              <p className="text-2xl md:text-3xl font-bold mt-2 text-purple-600 dark:text-purple-400 animate-pulse-soft">
-                {credits.gemini !== null ? (
-                  typeof credits.gemini === 'number' ? 
-                    credits.gemini.toLocaleString() : 
-                    <span className="text-purple-500">{credits.gemini}</span>
-                ) : (
-                  configuredKeys.gemini ? (
-                    <span className="text-purple-500">Key configured, credits unavailable</span>
-                  ) : (
-                    <span className="text-gray-500">No API key configured</span>
-                  )
-                )}
-              </p>
+      {/* Balance Card */}
+      <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg p-8 shadow-xl card-animate">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-emerald-100 text-sm mb-2">Current Balance</div>
+            <div className="text-5xl font-bold text-white mb-2">
+              {formatCurrency(balance)}
             </div>
-            {configuredKeys.gemini && (
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => handleShowApiKey('gemini')}
-                  className="text-blue-500 hover:text-blue-700 transition-all duration-300 transform hover:scale-125"
-                  title="Show API Key"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </button>
-                <button 
-                  onClick={() => openDeleteConfirm('gemini')}
-                  className="text-red-500 hover:text-red-700 transition-all duration-300 transform hover:scale-125"
-                  title="Delete API Key"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Deepgram Credits */}
-        <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-4 md:p-6 card-animate">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-base md:text-lg font-medium text-slate-800 dark:text-white">Deepgram Credits</h3>
-              <p className="text-xs md:text-sm text-slate-500 mt-1">For speech recognition</p>
-              <p className="text-2xl md:text-3xl font-bold mt-2 text-orange-600 dark:text-orange-400 animate-pulse-soft">
-                {credits.deepgram !== null ? (
-                  typeof credits.deepgram === 'number' ? 
-                    `$${credits.deepgram.toFixed(2)}` : 
-                    <span className="text-orange-500">{credits.deepgram}</span>
-                ) : (
-                  configuredKeys.deepgram ? (
-                    <span className="text-orange-500">Key configured, credits unavailable</span>
-                  ) : (
-                    <span className="text-gray-500">No API key configured</span>
-                  )
-                )}
-              </p>
+            <div className="text-emerald-100 text-sm">
+              Available for API usage
             </div>
           </div>
+          <div className="text-6xl opacity-20">💰</div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-4 md:p-6 card-animate animate-slide-up" style={{ animationDelay: '0.3s' }}>
-        <h2 className="text-lg md:text-xl font-semibold text-slate-800 dark:text-white mb-6">Usage Details</h2>
+      {/* Usage Stats */}
+      <div className="card-animate" style={{ animationDelay: '0.1s' }}>
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">
+          Usage by Service
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* ElevenLabs Usage */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-slate-800 dark:text-white">ElevenLabs</h3>
-              <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">Text-to-Speech</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 dark:text-slate-300">Available Credits:</span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {credits.elevenlabs !== null ? (
-                    typeof credits.elevenlabs === 'number' ? 
-                      credits.elevenlabs.toLocaleString() : 
-                      <span className="text-sm">Unavailable</span>
-                  ) : (
-                    <span className="text-sm">Not configured</span>
-                  )}
-                </span>
+          {usageStats.length > 0 ? (
+            usageStats.map((stat, index) => (
+              <div
+                key={stat.service}
+                className="bg-white dark:bg-darkbg-light rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
+                style={{ animationDelay: `${0.15 + index * 0.05}s` }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium capitalize text-slate-800 dark:text-white">
+                    {stat.service}
+                  </h3>
+                  <div className={`text-3xl w-12 h-12 rounded-full bg-gradient-to-br ${getServiceColor(stat.service)} flex items-center justify-center`}>
+                    {getServiceIcon(stat.service)}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Total Spent</span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white">
+                      {formatCurrency(stat.totalCost)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Usage Count</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {stat.usageCount}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Total Units</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {stat.totalUnits.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {configuredKeys.elevenlabs ? '✓ API Key Configured' : '✗ API Key Not Configured'}
-              </div>
+            ))
+          ) : (
+            <div className="col-span-3 text-center py-12 text-slate-500 dark:text-slate-400">
+              No usage data yet. Start making calls to see your usage statistics.
             </div>
-          </div>
-
-          {/* Gemini Usage */}
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-slate-800 dark:text-white">Google Gemini</h3>
-              <span className="text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">AI Models</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 dark:text-slate-300">Available Models:</span>
-                <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                  {credits.gemini !== null ? (
-                    typeof credits.gemini === 'number' ? 
-                      credits.gemini : 
-                      <span className="text-sm">Unavailable</span>
-                  ) : (
-                    <span className="text-sm">Not configured</span>
-                  )}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {configuredKeys.gemini ? '✓ API Key Configured' : '✗ API Key Not Configured'}
-              </div>
-            </div>
-          </div>
-
-          {/* Deepgram Usage */}
-          <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-slate-800 dark:text-white">Deepgram</h3>
-              <span className="text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 px-2 py-1 rounded">Speech-to-Text</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 dark:text-slate-300">Account Balance:</span>
-                <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                  {credits.deepgram !== null ? (
-                    typeof credits.deepgram === 'number' ? 
-                      `$${credits.deepgram.toFixed(2)}` : 
-                      <span className="text-sm">Unavailable</span>
-                  ) : (
-                    <span className="text-sm">Not configured</span>
-                  )}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {configuredKeys.deepgram ? '✓ API Key Configured' : '✗ API Key Not Configured'}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Purchase Modal */}
-      {showPurchaseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-xl max-w-md w-full animate-scale-in">
-            <div className="p-6">
-              <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4 animate-slide-down">Purchase Credits</h3>
-              <div className="space-y-4 stagger-children">
-                <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+      {/* Pricing Information */}
+      <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-6 card-animate" style={{ animationDelay: '0.3s' }}>
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">
+          Service Pricing
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <thead>
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Service
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Cost Per Unit
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Unit Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Description
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {pricing.map((p) => (
+                <tr key={p.service_type} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <span className="mr-2">{getServiceIcon(p.service_type)}</span>
+                      <span className="capitalize font-medium text-slate-900 dark:text-white">
+                        {p.service_type}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                    {formatCurrency(p.cost_per_unit)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap capitalize text-slate-600 dark:text-slate-400">
+                    {p.unit_type}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                    {p.description}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Transaction History */}
+      <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-sm p-6 card-animate" style={{ animationDelay: '0.4s' }}>
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">
+          Transaction History
+        </h2>
+        <div className="overflow-x-auto">
+          {transactions.length > 0 ? (
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Service
-                  </label>
-                  <select
-                    value={purchaseService}
-                    onChange={(e) => setPurchaseService(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300 input-animate"
-                  >
-                    <option value="platform">Platform Credits</option>
-                    <option value="elevenlabs">ElevenLabs Credits</option>
-                    <option value="gemini">Google Gemini Credits</option>
-                  </select>
-                </div>
-                <div className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Amount
-                  </label>
-                  <input
-                    type="number"
-                    value={purchaseAmount}
-                    onChange={(e) => setPurchaseAmount(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300 input-animate"
-                    min="1"
-                  />
-                </div>
-              </div>
-              <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-                <button
-                  onClick={() => setShowPurchaseModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md transition-all duration-300 btn-animate"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePurchase}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-md transition-all duration-300 btn-animate"
-                >
-                  Purchase
-                </button>
-              </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Balance After
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Description
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {transactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                      {formatDate(tx.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                        tx.type === 'credit' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                      }`}>
+                        {tx.type.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm capitalize text-slate-700 dark:text-slate-300">
+                      {tx.service ? (
+                        <span className="flex items-center">
+                          <span className="mr-2">{getServiceIcon(tx.service)}</span>
+                          {tx.service}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap font-semibold ${
+                      tx.type === 'credit' 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300">
+                      {formatCurrency(tx.balanceAfter)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                      {tx.description}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+              No transactions yet
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-xl max-w-md w-full animate-scale-in">
-            <div className="p-6">
-              <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4 animate-slide-down">Confirm Deletion</h3>
-              <p className="text-slate-600 dark:text-slate-300 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-                Are you sure you want to delete your {formatServiceName(deleteService)} API key? This action cannot be undone.
-              </p>
-              <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md transition-all duration-300 btn-animate"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDeleteApiKey(deleteService)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-all duration-300 btn-animate"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Show API Key Modal */}
-      {showApiKey && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-xl max-w-md w-full animate-scale-in">
-            <div className="p-6">
-              <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-4 animate-slide-down">API Key</h3>
-              <div className="mb-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {formatServiceName(showApiKey.service)} API Key
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={showApiKey.key}
-                    readOnly
-                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                  />
-                  <button
-                    onClick={() => navigator.clipboard.writeText(showApiKey.key)}
-                    className="px-3 py-2 bg-primary hover:bg-primary-dark text-white rounded-md transition-all duration-300 btn-animate whitespace-nowrap"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
-              <div className="flex justify-end animate-slide-up" style={{ animationDelay: '0.2s' }}>
-                <button
-                  onClick={() => setShowApiKey(null)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md transition-all duration-300 btn-animate"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
 
-export default CreditsPage;
+export default WalletPage;

@@ -13,6 +13,8 @@ const AdminUserDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditDescription, setCreditDescription] = useState('');
 
   // Form states for service limits
   const [editingService, setEditingService] = useState<string | null>(null);
@@ -129,6 +131,72 @@ const AdminUserDetailPage: React.FC = () => {
     );
   }
 
+const handleAddCredits = async () => {
+  try {
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    const response = await fetch(`${apiUrl}/admin/wallet/add-credits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        amount: parseFloat(creditAmount),
+        description: creditDescription,
+        adminId: admin!.id
+      })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      alert(`Successfully added $${creditAmount} to user wallet`);
+      // Refresh user data
+      fetchUserDetails();
+      setCreditAmount('');
+      setCreditDescription('');
+    }
+  } catch (error) {
+    console.error('Error adding credits:', error);
+  }
+};
+
+// In the JSX:
+<div className="bg-white rounded-lg shadow p-6 mb-6">
+  <h3 className="text-lg font-semibold mb-4">Wallet Management</h3>
+  <div className="mb-4">
+    <label className="block text-sm font-medium mb-2">Current Balance</label>
+    <div className="text-3xl font-bold text-emerald-600">
+      ${user.wallet_balance || '0.00'}
+    </div>
+  </div>
+  <div className="space-y-4">
+    <div>
+      <label className="block text-sm font-medium mb-2">Add Credits</label>
+      <input
+        type="number"
+        step="0.01"
+        value={creditAmount}
+        onChange={(e) => setCreditAmount(e.target.value)}
+        placeholder="Amount ($)"
+        className="w-full border rounded px-3 py-2"
+      />
+    </div>
+    <div>
+      <label className="block text-sm font-medium mb-2">Description</label>
+      <input
+        type="text"
+        value={creditDescription}
+        onChange={(e) => setCreditDescription(e.target.value)}
+        placeholder="Reason for credit adjustment"
+        className="w-full border rounded px-3 py-2"
+      />
+    </div>
+    <button
+      onClick={handleAddCredits}
+      className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+    >
+      Add Credits
+    </button>
+  </div>
+</div>
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}

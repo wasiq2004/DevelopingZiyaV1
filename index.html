@@ -7,7 +7,7 @@
     <title>Ziya Voice</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -16,81 +16,87 @@
           extend: {
             colors: {
               primary: {
-                DEFAULT: '#10B981',
-                dark: '#059669',
+                DEFAULT: '#1a73e8', // Google Blue
+                dark: '#1557b0',
+                light: '#4285f4',
+              },
+              secondary: {
+                 DEFAULT: '#e8f0fe', // Light blue background
+                 dark: '#d2e3fc',
               },
               darkbg: {
-                DEFAULT: '#1E293B',
-                light: '#334155',
-                lighter: '#475569',
+                DEFAULT: '#202124', // Google Dark Grey
+                light: '#303134',   // Lighter surface
+                lighter: '#3c4043',
               },
               lightbg: {
-                DEFAULT: '#F1F5F9',
-                dark: '#E2E8F0',
+                DEFAULT: '#f8f9fa', // Google Light Grey
+                dark: '#dadce0',
+              },
+              surface: {
+                DEFAULT: '#ffffff',
+                dark: '#303134',
               }
             },
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ['Roboto', 'sans-serif'],
             },
+            boxShadow: {
+              'google': '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+              'google-hover': '0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)',
+            }
           }
         }
       };
     </script>
     <style>
-      /* Custom scrollbar */
+      /* Google Standard Scrollbar */
       ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-      .dark ::-webkit-scrollbar-track { background: #2d3748; }
-      ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #555; }
-      .dark ::-webkit-scrollbar-thumb { background: #555; }
-      .dark ::-webkit-scrollbar-thumb:hover { background: #777; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
+      .dark ::-webkit-scrollbar-thumb { background: #5f6368; }
+      .dark ::-webkit-scrollbar-thumb:hover { background: #9aa0a6; }
       
-      /* Custom animations */
+      /* Refined Animations - Material Motion */
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes slideInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes slideInDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes slideInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
-      @keyframes slideInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-      @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-      @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-      @keyframes glow { 0%, 100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.3); } 50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); } }
+      @keyframes slideInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes slideInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
       
-      .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
-      .animate-slide-up { animation: slideInUp 0.6s ease-out; }
-      .animate-slide-down { animation: slideInDown 0.6s ease-out; }
-      .animate-slide-left { animation: slideInLeft 0.6s ease-out; }
-      .animate-slide-right { animation: slideInRight 0.6s ease-out; }
-      .animate-scale-in { animation: scaleIn 0.5s ease-out; }
-      .animate-pulse-soft { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-      .animate-bounce-gentle { animation: bounce 2s ease-in-out infinite; }
-      .animate-glow { animation: glow 2s ease-in-out infinite; }
-      .btn-animate { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-      .btn-animate:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1); }
-      .btn-animate:active { transform: translateY(0); }
-      .card-animate { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-      .card-animate:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15); }
-      .input-animate { transition: all 0.3s ease; }
-      .input-animate:focus { transform: scale(1.02); }
-      .success-message-animate { animation: slideInDown 0.4s ease-out; }
-      .error-message-animate { animation: slideInDown 0.4s ease-out; }
-      .spinner { border: 3px solid rgba(16, 185, 129, 0.1); border-radius: 50%; border-top: 3px solid #10B981; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-      .page-transition { animation: fadeIn 0.4s ease-in-out; }
-      .stagger-children > * { animation: slideInUp 0.6s ease-out; }
-      .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
-      .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
-      .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
-      .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
-      .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
-      .stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
-      @media (max-width: 640px) {
-        .animate-slide-left,
-        .animate-slide-right {
-          animation: slideInUp 0.6s ease-out;
-        }
+      .animate-fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); }
+      .animate-slide-up { animation: slideInUp 0.4s cubic-bezier(0.4, 0.0, 0.2, 1); }
+      .animate-slide-down { animation: slideInDown 0.4s cubic-bezier(0.4, 0.0, 0.2, 1); }
+      
+      /* Material Interactive State */
+      .btn-animate { 
+        transition: background-color 0.2s cubic-bezier(0.4, 0.0, 0.2, 1), 
+                    box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
+                    transform 0.1s linear; 
       }
+      .btn-animate:active { transform: scale(0.98); }
+      
+      .card-animate { 
+        transition: box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1); 
+      }
+      .card-animate:hover { 
+        box-shadow: 0 4px 8px 3px rgba(60,64,67,0.15), 0 1px 3px 0 rgba(60,64,67,0.3);
+      }
+      
+      .input-animate { transition: border 0.2s ease, box-shadow 0.2s ease; }
+      .input-animate:focus { box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2); border-color: #1a73e8; }
+      
+      .page-transition { animation: fadeIn 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); }
+      
+      .stagger-children > * { animation: slideInUp 0.4s cubic-bezier(0.4, 0.0, 0.2, 1) backwards; }
+      .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+      .stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+      .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+      .stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+      .stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+      
+       /* Hide gradient orbs for cleaner look */
+      .gradient-bg-animated { background: transparent; }
+      .gradient-orb { display: none; }
     </style>
   </head>
   <body class="bg-lightbg dark:bg-darkbg">

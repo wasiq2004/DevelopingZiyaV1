@@ -357,6 +357,16 @@ const LoginPage: React.FC = () => {
             </div>
           </form>
 
+          {/* Admin Panel Link */}
+          <div className="text-center mt-4">
+            <a 
+              href="/admin/login" 
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Admin Panel Login →
+            </a>
+          </div>
+
           {/* Divider */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

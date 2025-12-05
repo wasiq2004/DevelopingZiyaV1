@@ -1,11 +1,26 @@
 export const getApiBaseUrl = () => {
-  return'https://ziyavoice-production.up.railway.app';
+  // Use local server in development, production server in production
+  if (import.meta.env.DEV) {
+    // Check if we're on Railway or local development
+    if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
+      return "https://ziyavoice-production.up.railway.app/api";
+    }
+    // Use localhost for local development
+    return "http://localhost:5000/api";
+  }
+  // Production environment
+  return "https://ziyavoice-production.up.railway.app/api";
 };
 
 export const fetchCampaigns = async (userId: string) => {
   const response = await fetch(`${getApiBaseUrl()}/campaigns?userId=${userId}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
   }
   return response.json();
 };
@@ -19,6 +34,11 @@ export const createCampaign = async (userId: string, name: string) => {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
   return response.json();
 };
 
@@ -27,17 +47,27 @@ export const fetchCampaign = async (id: string, userId: string) => {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
   return response.json();
 };
 
-export const setCallerPhone = async (id: string, userId: string, callerPhone: string) => {
+export const setCallerPhone = async (id: string, userId: string, callerPhone: string, agentId?: string) => {
   const response = await fetch(`${getApiBaseUrl()}/campaigns/${id}/set-caller-phone`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, callerPhone })
+    body: JSON.stringify({ userId, callerPhone, agentId })
   });
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
   }
   return response.json();
 };
@@ -51,6 +81,11 @@ export const importRecords = async (id: string, userId: string, csvData: any[]) 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
   return response.json();
 };
 
@@ -62,6 +97,11 @@ export const addRecord = async (id: string, userId: string, phone: string) => {
   });
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
   }
   return response.json();
 };
@@ -75,6 +115,11 @@ export const deleteRecord = async (campaignId: string, recordId: string, userId:
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
   return response.json();
 };
 
@@ -86,6 +131,11 @@ export const startCampaign = async (id: string, userId: string) => {
   });
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
   }
   return response.json();
 };
@@ -99,6 +149,11 @@ export const stopCampaign = async (id: string, userId: string) => {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
+  }
   return response.json();
 };
 
@@ -106,6 +161,11 @@ export const fetchRecords = async (id: string, page: number = 1, limit: number =
   const response = await fetch(`${getApiBaseUrl()}/campaigns/${id}/records?page=${page}&limit=${limit}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  // Validate content type before parsing JSON
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Received non-JSON response from server');
   }
   return response.json();
 };

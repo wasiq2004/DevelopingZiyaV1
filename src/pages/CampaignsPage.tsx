@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import type { Campaign } from '../types';
 import { CampaignStatus } from '../types';
@@ -49,27 +50,30 @@ const CampaignsPage: React.FC = () => {
     const [newCampaignName, setNewCampaignName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
 
     useEffect(() => {
-        const handleClickOutside = () => {
-            setActiveDropdown(null);
+        const handleClickOutside = (event: MouseEvent) => {
+            if (activeDropdown && !(event.target as Element).closest('.dropdown-menu') && !(event.target as Element).closest('.dropdown-trigger')) {
+                setActiveDropdown(null);
+            }
         };
-        window.addEventListener('click', handleClickOutside);
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            window.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, []);
-    
+    }, [activeDropdown]);
+
     // Fetch campaigns from backend
     useEffect(() => {
         const fetchCampaigns = async () => {
             if (!user?.id) return;
-            
+
             try {
                 setLoading(true);
                 const result = await campaignApi.fetchCampaigns(user.id);
-                
+
                 if (result.success) {
                     setCampaigns(result.data);
                 } else {
@@ -81,12 +85,12 @@ const CampaignsPage: React.FC = () => {
                 setLoading(false);
             }
         };
-        
+
         if (view === 'list' && user?.id) {
             fetchCampaigns();
         }
     }, [view, user?.id]);
-    
+
     const handleCancelCreate = () => {
         setView('list');
         setNewCampaignName('');
@@ -99,7 +103,7 @@ const CampaignsPage: React.FC = () => {
             alert('Campaign name is required.');
             return;
         }
-        
+
         if (!user?.id) {
             alert('User not authenticated.');
             return;
@@ -112,7 +116,7 @@ const CampaignsPage: React.FC = () => {
             } else {
                 // Create new campaign
                 const result = await campaignApi.createCampaign(user.id, newCampaignName);
-                
+
                 if (result.success) {
                     setCampaigns([result.data, ...campaigns]);
                 } else {
@@ -120,7 +124,7 @@ const CampaignsPage: React.FC = () => {
                     return;
                 }
             }
-            
+
             handleCancelCreate();
         } catch (err: any) {
             alert(err.message || 'Failed to save campaign');
@@ -134,9 +138,18 @@ const CampaignsPage: React.FC = () => {
         return { date: datePart, time: timePart };
     };
 
-    const handleToggleDropdown = (e: React.MouseEvent, campaignId: string) => {
-        e.stopPropagation();
-        setActiveDropdown(activeDropdown === campaignId ? null : campaignId);
+    const handleToggleDropdown = (campaignId: string, event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (activeDropdown === campaignId) {
+            setActiveDropdown(null);
+        } else {
+            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+            setDropdownPos({
+                top: rect.bottom + window.scrollY,
+                left: rect.right + window.scrollX - 192 // w-48 is 192px
+            });
+            setActiveDropdown(campaignId);
+        }
     };
 
     const handleEdit = (campaign: Campaign) => {
@@ -188,13 +201,13 @@ const CampaignsPage: React.FC = () => {
                         <div className="space-y-6 stagger-children">
                             <div style={{ animationDelay: '0.1s' }}>
                                 <label htmlFor="campaignName" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Campaign name</label>
-                                <input 
-                                    type="text" 
-                                    name="campaignName" 
-                                    id="campaignName" 
-                                    value={newCampaignName} 
-                                    onChange={(e) => setNewCampaignName(e.target.value)} 
-                                    required 
+                                <input
+                                    type="text"
+                                    name="campaignName"
+                                    id="campaignName"
+                                    value={newCampaignName}
+                                    onChange={(e) => setNewCampaignName(e.target.value)}
+                                    required
                                     className="input-animate mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                                     placeholder="e.g., Q3 Sales Campaign"
                                 />
@@ -229,7 +242,7 @@ const CampaignsPage: React.FC = () => {
             </div>
 
             {campaigns.length > 0 ? (
-                 <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-md overflow-x-auto card-animate">
+                <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-md overflow-x-auto card-animate">
                     <div className="min-w-[700px]">
                         <div className="flex px-3 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-semibold tracking-wider">
                             <div className="w-[40%]">Campaign Name</div>
@@ -249,26 +262,14 @@ const CampaignsPage: React.FC = () => {
                                     <div className="w-[20%]">
                                         <StatusBadge status={campaign.status} />
                                     </div>
-                                     <div className="w-[20%] text-xs sm:text-sm">
+                                    <div className="w-[20%] text-xs sm:text-sm">
                                         <div className="text-slate-800 dark:text-slate-100">{formatDateTime(campaign.createdAt).date}</div>
                                         <div className="text-slate-500 dark:text-slate-400 text-xs">{formatDateTime(campaign.createdAt).time}</div>
                                     </div>
                                     <div className="w-[20%] flex justify-end relative">
-                                        <button onClick={(e) => handleToggleDropdown(e, campaign.id)} className="p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+                                        <button onClick={(e) => handleToggleDropdown(campaign.id, e)} className="dropdown-trigger p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                                            <svg className="w-5 h-5 pointer-events-none" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
                                         </button>
-                                        {activeDropdown === campaign.id && (
-                                            <div
-                                                className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-darkbg-light border border-slate-200 dark:border-slate-700 rounded-md shadow-lg z-50"
-                                                onClick={(e) => e.stopPropagation()} 
-                                            >
-                                                <ul className="py-1">
-                                                    <li><a href="#" onClick={(e) => { e.preventDefault(); handleEdit(campaign); }} className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg">Edit</a></li>
-                                                    <li><a href="#" onClick={(e) => { e.preventDefault(); handleView(campaign.id); }} className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg">View</a></li>
-                                                    <li><a href="#" onClick={(e) => { e.preventDefault(); handleDelete(campaign.id); }} className="block px-4 py-2 text-sm text-red-500 hover:bg-slate-100 dark:hover:bg-darkbg">Delete</a></li>
-                                                </ul>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -278,7 +279,7 @@ const CampaignsPage: React.FC = () => {
             ) : (
                 <div className="bg-white dark:bg-darkbg-light rounded-lg shadow-md flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center p-4 card-animate">
                     <p className="text-slate-500 dark:text-slate-400 mb-6">No active campaigns found</p>
-                    <button 
+                    <button
                         onClick={() => setView('create')}
                         className="btn-animate border border-primary text-primary font-bold py-2 px-4 rounded-lg flex items-center transition hover:bg-primary hover:text-white"
                     >
@@ -287,6 +288,52 @@ const CampaignsPage: React.FC = () => {
                     </button>
                 </div>
             )}
+            
+            {/* Dropdown Portal - Moved inside the main return statement */}
+            {activeDropdown && (() => {
+                const campaign = campaigns.find(c => c.id === activeDropdown);
+                if (!campaign) return null;
+                return createPortal(
+                    <div
+                        className="dropdown-menu absolute w-48 bg-white dark:bg-darkbg-light rounded-md shadow-lg z-50 border border-slate-200 dark:border-slate-700"
+                        style={{ top: `${dropdownPos.top}px`, left: `${dropdownPos.left}px` }}
+                    >
+                        <div className="py-1">
+                            <a
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleEdit(campaign);
+                                }}
+                                className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                Edit
+                            </a>
+                            <a
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleView(campaign.id);
+                                }}
+                                className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                View
+                            </a>
+                            <a
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDelete(campaign.id);
+                                }}
+                                className="block px-4 py-2 text-sm text-red-500 hover:bg-slate-100 dark:hover:bg-darkbg"
+                            >
+                                Delete
+                            </a>
+                        </div>
+                    </div>,
+                    document.body
+                );
+            })()}
         </div>
     );
 };

@@ -5,7 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "vite",
-    "build": "echo \"Frontend built by Vite, backend does not need build\"",
+    "build": "vite build",
     "start": "node server/server.js",
     "preview": "vite preview",
     "server": "node server/server.js",
@@ -17,10 +17,13 @@
     "migrate:schema": "cd server && node apply-schema.js",
     "migrate:campaign-records": "cd server && node update-campaign-records.js",
     "migrate:twilio-basic": "cd server && node migrate-twilio-basic-schema.js",
+    "migrate:twilio-accounts": "cd server && node apply-user-twilio-accounts-table.js",
     "test:api-keys": "cd server && node test-api-keys.js",
     "test:call": "cd server && node test-call.js",
     "test:campaign-call": "cd server && node test-campaign-call.js",
-    "test:twilio-basic": "cd server && node test-twilio-basic.js"
+    "test:twilio-basic": "cd server && node test-twilio-basic.js",
+    "test:sarvam-tts": "cd server && node tests/test_sarvam_tts.js",
+    "migrate:voices": "cd server && node apply-voices-schema.js"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",
@@ -50,6 +53,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/node": "^24.10.1",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.22",
     "concurrently": "^8.2.2",
