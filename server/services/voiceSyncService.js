@@ -148,7 +148,13 @@ class VoiceSyncService {
                 { speaker: 'abhilash', language: 'en-IN', gender: 'male' },
                 { speaker: 'chitra', language: 'ta-IN', gender: 'female' },
                 { speaker: 'meera', language: 'hi-IN', gender: 'female' },
-                { speaker: 'arvind', language: 'hi-IN', gender: 'male' }
+                { speaker: 'arvind', language: 'hi-IN', gender: 'male' ,
+                { speaker: 'arvind', language: 'hi-IN', gender: 'male' },
+                { speaker: 'manisha', language: 'hi-IN', gender: 'female' },
+                { speaker: 'vidya', language: 'en-IN', gender: 'female' },
+                { speaker: 'arya', language: 'en-IN', gender: 'female' },
+                { speaker: 'karun', language: 'en-IN', gender: 'male' },
+                { speaker: 'hitesh', language: 'en-IN', gender: 'male' }
             ];
 
             console.log(`[VoiceSync] Creating ${sarvamVoices.length} Sarvam voices from known speakers`);
