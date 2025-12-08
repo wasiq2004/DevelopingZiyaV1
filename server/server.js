@@ -108,6 +108,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
 
+// Trigger initial voice sync
+voiceSyncService.syncAllProviders()
+  .then(result => {
+    console.log(`✅ Initial voice sync complete: ${result.synced} voices synced`);
+    if (result.errors.length > 0) {
+      console.warn('⚠️ Voice sync errors:', result.errors);
+    }
+  })
+  .catch(err => console.error('❌ Initial voice sync failed:', err.message));
 // Get user wallet balance
 app.get('/api/wallet/balance/:userId', async (req, res) => {
   try {
