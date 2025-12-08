@@ -195,9 +195,37 @@ class GoogleVoiceStreamHandler {
 
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't understand that.";
     }
-
     async generateAudio(text, voiceId, apiKey) {
-        const response = await nodeFetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_16000`, {
+        const sarvamSpeakers = [
+            'anushka', 'abhilash', 'chitra', 'meera', 'arvind',
+            'manisha', 'vidya', 'arya', 'karun', 'hitesh'
+        ];
+        // If voiceId matches a Sarvam speaker or starts with 'sarvam:'
+        const isSarvam = sarvamSpeakers.includes(voiceId) || voiceId.startsWith('sarvam:');
+        if (isSarvam) {
+            const speaker = voiceId.replace('sarvam:', '');
+            console.log(`[GoogleVoice] Generating Sarvam audio for speaker: ${speaker}`);
+
+            try {
+                // Import dynamically to avoid top-level issues if file missing
+                const { sarvamTTS } = require('./tts_sarvam');
+
+                const audioBuffer = await sarvamTTS(text, {
+                    speaker: speaker,
+                    language: 'en-IN', // You might want to make this dynamic later
+                    format: 'wav',     // WAV works well with decodeAudioData
+                    skipConversion: true // Use our new flag to get standard WAV
+                });
+
+                return audioBuffer.toString('base64');
+            } catch (err) {
+                console.error('[GoogleVoice] Sarvam TTS Failed:', err);
+                // Fallback or re-throw?
+                throw new Error(`Sarvam TTS Failed: ${err.message}`);
+            }
+        }
+        console.log(`[GoogleVoice] Generating ElevenLabs audio for voice: ${voiceId}`);
+        const response = await nodeFetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
             method: 'POST',
             headers: {
                 'xi-api-key': apiKey,
