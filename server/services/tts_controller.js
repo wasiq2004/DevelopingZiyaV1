@@ -20,7 +20,25 @@ const { sarvamTTS } = require("./tts_sarvam.js");
  * @returns {Promise<Buffer>} - Audio buffer in ulaw_8000 format
  */
 async function generateTTS(text, options = {}) {
-    const provider = options.provider || process.env.TTS_PROVIDER || "elevenlabs";
+    // Known Sarvam speakers
+    const sarvamSpeakers = ['anushka', 'abhilash', 'chitra', 'meera', 'arvind', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
+
+    // Auto-detect provider based on voice ID or speaker
+    let provider = options.provider || process.env.TTS_PROVIDER;
+
+    // If no provider specified, try to detect from voice ID/speaker
+    if (!provider) {
+        const voiceId = (options.voiceId || options.speaker || '').toLowerCase();
+        if (sarvamSpeakers.includes(voiceId)) {
+            provider = 'sarvam';
+            // Set speaker if not already set
+            if (!options.speaker) {
+                options.speaker = voiceId;
+            }
+        } else {
+            provider = 'elevenlabs';
+        }
+    }
 
     console.log(`[TTS Controller] Selected provider: ${provider}`);
 
