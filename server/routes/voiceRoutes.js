@@ -133,19 +133,34 @@ router.post('/:id/preview', async (req, res) => {
         const previewText = text || "Hello, this is a preview of the selected voice.";
 
         // Generate TTS using the appropriate provider
-        const audioBuffer = await generateTTS(previewText, {
+        let ttsOptions = {
             voiceId: voice.provider_voice_id,
             provider: voice.provider,
             language: voice.language_code,
             speaker: voice.provider_voice_id
-        });
+        };
+
+        // Configure format based on provider for web browser compatibility
+        if (voice.provider === 'sarvam') {
+            ttsOptions.format = 'wav';
+            ttsOptions.skipConversion = true; // Return raw WAV for browser
+        } else {
+            // ElevenLabs
+            ttsOptions.output_format = 'mp3_44100_128'; // Standard MP3 for browser
+        }
+
+        const audioBuffer = await generateTTS(previewText, ttsOptions);
 
         // Convert buffer to base64
         const base64Audio = audioBuffer.toString('base64');
 
+        // Determine MIME type
+        const mimeType = voice.provider === 'sarvam' ? 'audio/wav' : 'audio/mpeg';
+        const dataUri = `data:${mimeType};base64,${base64Audio}`;
+
         res.json({
             success: true,
-            audioData: base64Audio,
+            audioData: dataUri, // Send full Data URI for easy playback
             voice: {
                 id: voice.id,
                 name: voice.display_name,
