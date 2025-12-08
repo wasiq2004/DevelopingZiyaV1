@@ -1,11 +1,6 @@
 const nodeFetch = require("node-fetch");
 const { v4: uuidv4 } = require("uuid");
 
-/**
- * Voice Sync Service
- * Fetches and normalizes voice lists from multiple TTS providers
- * Stores voices in database with provider-specific metadata
- */
 class VoiceSyncService {
     constructor(pool) {
         this.pool = pool;
@@ -16,10 +11,7 @@ class VoiceSyncService {
         };
     }
 
-    /**
-     * Sync voices from all providers
-     * @returns {Promise<{success: boolean, synced: number, errors: string[]}>}
-     */
+
     async syncAllProviders() {
         console.log('[VoiceSync] Starting sync for all providers...');
 
@@ -61,11 +53,6 @@ class VoiceSyncService {
 
         return results;
     }
-
-    /**
-     * Sync voices from ElevenLabs
-     * @returns {Promise<{success: boolean, count: number, error?: string}>}
-     */
     async syncElevenLabsVoices() {
         console.log('[VoiceSync] Fetching ElevenLabs voices...');
 
@@ -123,10 +110,6 @@ class VoiceSyncService {
         }
     }
 
-    /**
-     * Sync voices from Sarvam
-     * @returns {Promise<{success: boolean, count: number, error?: string}>}
-     */
     async syncSarvamVoices() {
         console.log('[VoiceSync] Fetching Sarvam voices...');
 
@@ -141,14 +124,11 @@ class VoiceSyncService {
                 };
             }
 
-            // Note: Sarvam may not have a voices list API
-            // For now, we'll create voices based on known speakers
             const sarvamVoices = [
                 { speaker: 'anushka', language: 'en-IN', gender: 'female' },
                 { speaker: 'abhilash', language: 'en-IN', gender: 'male' },
                 { speaker: 'chitra', language: 'ta-IN', gender: 'female' },
                 { speaker: 'meera', language: 'hi-IN', gender: 'female' },
-                { speaker: 'arvind', language: 'hi-IN', gender: 'male'},
                 { speaker: 'arvind', language: 'hi-IN', gender: 'male' },
                 { speaker: 'manisha', language: 'hi-IN', gender: 'female' },
                 { speaker: 'vidya', language: 'en-IN', gender: 'female' },
@@ -185,11 +165,6 @@ class VoiceSyncService {
         }
     }
 
-    /**
-     * Normalize ElevenLabs voice to common DTO format
-     * @param {any} rawVoice - Raw voice data from ElevenLabs API
-     * @returns {VoiceDTO}
-     */
     normalizeElevenLabsVoice(rawVoice) {
         return {
             provider: 'elevenlabs',
@@ -210,11 +185,7 @@ class VoiceSyncService {
         };
     }
 
-    /**
-     * Normalize Sarvam voice to common DTO format
-     * @param {any} rawVoice - Raw voice data from Sarvam
-     * @returns {VoiceDTO}
-     */
+
     normalizeSarvamVoice(rawVoice) {
         return {
             provider: 'sarvam',
@@ -232,11 +203,7 @@ class VoiceSyncService {
         };
     }
 
-    /**
-     * Upsert voice into database
-     * @param {VoiceDTO} voiceDTO - Normalized voice data
-     * @returns {Promise<void>}
-     */
+
     async upsertVoice(voiceDTO) {
         try {
             const id = uuidv4();
@@ -278,11 +245,6 @@ class VoiceSyncService {
         }
     }
 
-    /**
-     * Get all voices from database
-     * @param {string} provider - Filter by provider (all, elevenlabs, sarvam)
-     * @returns {Promise<any[]>}
-     */
     async getVoices(provider = 'all') {
         try {
             // Check cache first
@@ -296,10 +258,10 @@ class VoiceSyncService {
                 'SELECT * FROM voices ORDER BY provider, display_name'
             );
 
-            // Parse meta JSON
+            // Parse meta JSON (MySQL might return it as object or string depending on driver)
             const voices = rows.map(row => ({
                 ...row,
-                meta: row.meta ? JSON.parse(row.meta) : {}
+                meta: typeof row.meta === 'string' ? JSON.parse(row.meta) : (row.meta || {})
             }));
 
             // Update cache
@@ -316,24 +278,13 @@ class VoiceSyncService {
         }
     }
 
-    /**
-     * Filter voices by provider
-     * @param {any[]} voices - All voices
-     * @param {string} provider - Provider filter
-     * @returns {any[]}
-     */
+
     filterVoicesByProvider(voices, provider) {
         if (provider === 'all') {
             return voices;
         }
         return voices.filter(v => v.provider === provider);
     }
-
-    /**
-     * Get voice by ID
-     * @param {string} id - Voice ID
-     * @returns {Promise<any|null>}
-     */
     async getVoiceById(id) {
         try {
             const [rows] = await this.pool.execute(
@@ -348,7 +299,7 @@ class VoiceSyncService {
             const voice = rows[0];
             return {
                 ...voice,
-                meta: voice.meta ? JSON.parse(voice.meta) : {}
+                meta: typeof voice.meta === 'string' ? JSON.parse(voice.meta) : (voice.meta || {})
             };
 
         } catch (error) {
