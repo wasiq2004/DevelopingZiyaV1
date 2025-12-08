@@ -43,6 +43,13 @@ const expressWsInstance = expressWs(app, server, {
   }
 });
 console.log('✅ WebSocket with skipUTF8Validation enabled');
+// Initialize Google Voice Stream Handler
+const GoogleVoiceStreamHandler = require('./services/GoogleVoiceStreamHandler.js');
+const googleVoiceHandler = new GoogleVoiceStreamHandler(voiceSyncService, walletService);
+app.ws('/voice-stream-google', (ws, req) => {
+  googleVoiceHandler.handleConnection(ws, req);
+});
+console.log('✅ Google Voice Stream Handler initialized at /voice-stream-google');
 
 // ADD THIS BLOCK HERE:
 console.log('=== ENVIRONMENT CHECK ===');
