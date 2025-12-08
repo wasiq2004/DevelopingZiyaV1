@@ -17,7 +17,7 @@ const nodeFetch = require("node-fetch");
 async function sarvamTTS(text, options = {}) {
     try {
         const apiKey = process.env.SARVAM_API_KEY;
-        
+
         if (!apiKey) {
             throw new Error("SARVAM_API_KEY not configured in environment variables");
         }
@@ -60,18 +60,22 @@ async function sarvamTTS(text, options = {}) {
 
         const audioBuffer = await response.buffer();
         console.log(`[TTS] Audio received: ${audioBuffer.length} bytes`);
-         if (options.skipConversion) {
+
+        // Convert to ulaw_8000 format for Twilio compatibility
+        // If skipConversion is true, return the original buffer (e.g. for web frontend)
+        if (options.skipConversion) {
             console.log(`[TTS] Skipping conversion, returning ${format}`);
             return audioBuffer;
         }
+
         const ulawBuffer = await convertToUlaw(audioBuffer, format);
-        
+
         console.log(`[TTS] Converted to ulaw_8000: ${ulawBuffer.length} bytes`);
         return ulawBuffer;
 
     } catch (error) {
         console.error("[TTS] Error in Sarvam TTS:", error.message);
-        
+
         // Provide specific error messages for common issues
         if (error.message.includes("SARVAM_API_KEY")) {
             throw new Error("Sarvam API key is missing. Please set SARVAM_API_KEY in your environment variables.");
@@ -82,7 +86,7 @@ async function sarvamTTS(text, options = {}) {
         } else if (error.message.includes("429")) {
             throw new Error("Rate limit exceeded: Too many requests to Sarvam API.");
         }
-        
+
         throw error;
     }
 }
@@ -102,11 +106,11 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
         // 1. Request ulaw format directly from Sarvam if supported
         // 2. Use ffmpeg/sox for conversion if needed
         // 3. Use a Node.js audio processing library
-        
+
         // TODO: Implement actual audio format conversion if needed
         // For now, returning the buffer as-is
         // This works if Sarvam can output in a Twilio-compatible format
-        
+
         return audioBuffer;
     } catch (error) {
         console.error("[TTS] Error converting audio format:", error.message);
