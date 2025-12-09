@@ -65,7 +65,7 @@ var LLMService = /** @class */ (function () {
                     case 1:
                         _b.trys.push([1, 3, , 4]);
 
-                        modelName = request.model || 'gemini-1.5-flash';
+                        modelName = request.model || 'models/gemini-2.5-flash';
 
                         // Use getGenerativeModel
                         model = this.genAI.getGenerativeModel({
