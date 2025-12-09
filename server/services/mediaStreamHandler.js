@@ -241,11 +241,15 @@ class MediaStreamHandler {
                                 console.log(`👋 Greeting: "${session.greetingMessage}"`);
                                 console.log(`🔊 Using voice ID for greeting: ${session.agentVoiceId}`);
                                 const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
-                                if (audio) {
+                                if (audio && audio.length > 0) {
+                                    console.log(`✅ Greeting audio generated: ${audio.length} bytes`);
                                     this.sendAudioToTwilio(session, audio);
+                                } else {
+                                    console.error("❌ Greeting audio is empty or null");
                                 }
                             } catch (err) {
                                 console.error("❌ Greeting error:", err);
+                                console.error("❌ Error stack:", err.stack);
                             }
                         }, 500);
 
@@ -258,6 +262,10 @@ class MediaStreamHandler {
                             const audioBuffer = Buffer.from(data.media.payload, "base64");
                             if (audioBuffer.length > 0) {
                                 session.sttStream.send(audioBuffer);
+                                // Log occasionally to verify audio is flowing
+                                if (Math.random() < 0.01) { // Log ~1% of packets
+                                    console.log(`🎤 Receiving audio from user (${audioBuffer.length} bytes)`);
+                                }
                             }
                         }
 
