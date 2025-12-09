@@ -213,20 +213,24 @@ class DeepgramBrowserHandler {
 
     async callLLM(session) {
         try {
+            console.log("🧠 Calling Gemini LLM...");
             const response = await this.llmService.generateContent({
                 model: "gemini-1.5-flash",
                 contents: session.context,
                 config: { systemInstruction: session.agentPrompt },
             });
+            console.log("🧠 Gemini response received");
             return response.text;
         } catch (err) {
-            console.error("❌ LLM error:", err);
+            console.error("❌ LLM error details:", err.message);
+            console.error(err.stack);
             return "I'm having trouble connecting to my brain right now.";
         }
     }
 
     async synthesizeTTS(text, voiceId) {
         try {
+            console.log(`🔊 Generating TTS for: "${text.substring(0, 20)}..."`);
             const { generateTTS } = require('./tts_controller.js');
             // Request High Quality MP3 for browser playback
             const audioBuffer = await generateTTS(text, {
@@ -235,9 +239,11 @@ class DeepgramBrowserHandler {
                 format: 'mp3',                  // Sarvam
                 skipConversion: true            // Sarvam (prevent ulaw conversion)
             });
+            console.log(`✅ TTS generated: ${audioBuffer ? audioBuffer.length : 0} bytes`);
             return audioBuffer;
         } catch (err) {
-            console.error("❌ TTS error:", err);
+            console.error("❌ TTS error details:", err.message);
+            console.error(err.stack);
             return null;
         }
     }
