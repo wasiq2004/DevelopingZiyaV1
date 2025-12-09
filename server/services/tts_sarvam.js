@@ -1,6 +1,20 @@
 const nodeFetch = require("node-fetch");
 const { WaveFile } = require('wavefile');
 
+/**
+ * Sarvam TTS Service
+ * Provides text-to-speech functionality using Sarvam.ai API
+ */
+
+/**
+ * Generate speech audio using Sarvam TTS API
+ * @param {string} text - The text to convert to speech
+ * @param {Object} options - TTS options
+ * @param {string} options.language - Target language code (default: en-IN)
+ * @param {string} options.speaker - Speaker/voice name (default: anushka)
+ * @param {string} options.format - Audio format: mp3, wav, pcm (default: mp3)
+ * @returns {Promise<Buffer>} - Audio buffer in ulaw_8000 format for Twilio compatibility
+ */
 async function sarvamTTS(text, options = {}) {
     try {
         const apiKey = process.env.SARVAM_API_KEY;
@@ -65,6 +79,8 @@ async function sarvamTTS(text, options = {}) {
         const actualFormat = detectAudioFormat(audioBuffer);
         console.log(`[TTS] Detected audio format: ${actualFormat} (requested: ${format})`);
 
+        // Convert to ulaw_8000 format for Twilio compatibility
+        // If skipConversion is true, return the original buffer (e.g. for web frontend)
         if (options.skipConversion) {
             console.log(`[TTS] Skipping conversion, returning ${format}`);
             return audioBuffer;
@@ -93,6 +109,11 @@ async function sarvamTTS(text, options = {}) {
     }
 }
 
+/**
+ * Detect audio format by inspecting magic numbers (file signatures)
+ * @param {Buffer} buffer - Audio buffer to inspect
+ * @returns {string} - Detected format: 'mp3', 'wav', 's16le', or 'unknown'
+ */
 function detectAudioFormat(buffer) {
     if (buffer.length < 4) return 'unknown';
 
@@ -109,13 +130,22 @@ function detectAudioFormat(buffer) {
         return 'wav'; // RIFF
     }
 
+    // If no recognizable header, assume raw PCM (signed 16-bit little-endian)
     return 's16le';
 }
 
+/**
+ * Convert audio buffer to ulaw_8000 format for Twilio compatibility
+ * @param {Buffer} audioBuffer - Input audio buffer
+ * @param {string} sourceFormat - Source audio format (mp3, wav, pcm)
+ * @returns {Promise<Buffer>} - Audio buffer in ulaw_8000 format
+ */
 async function convertToUlaw(audioBuffer, sourceFormat) {
     try {
         console.log(`[TTS] Converting ${sourceFormat} (${audioBuffer.length} bytes) to ulaw_8000...`);
-         if (sourceFormat === 'wav' || sourceFormat === 's16le' || sourceFormat === 'unknown') {
+
+        // OPTION 1: Use wavefile for WAV and Raw PCM (Pure JS, no ffmpeg needed)
+        if (sourceFormat === 'wav' || sourceFormat === 's16le' || sourceFormat === 'unknown') {
             try {
                 const wav = new WaveFile();
 
@@ -123,28 +153,48 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     // Load existing WAV
                     wav.fromBuffer(audioBuffer);
                 } else {
+                    // Assume Raw PCM: 24kHz, 1 channel, 16-bit (Sarvam default)
+                    // If sourceFormat is unknown, we guess it's raw 24k PCM
                     wav.fromScratch(1, 24000, '16', audioBuffer);
                 }
 
                 // Resample to 8000Hz
                 wav.toSampleRate(8000);
 
-                // Convert to mu-law (8-bit)
-                wav.toBitDepth('8m');
-
-                // Extract raw samples (payload only, no WAV header) for Twilio
+                // Extract samples. wav.data.samples determines the samples as bytes (Uint8Array)
+                // We need to interpret them as 16-bit PCM (Little Endian)
                 const samples = wav.data.samples;
-                const ulawBuffer = Buffer.from(samples);
 
-                console.log(`[TTS] Conversion successful (using wavefile): ${ulawBuffer.length} bytes`);
+                // Convert to 8-bit mu-law manually to ensure valid G.711 format (silence = 0xFF)
+                // wavefile's built-in conversion was producing 0x00 for silence which is invalid
+                const ulawBuffer = Buffer.alloc(samples.length / 2);
+
+                for (let i = 0; i < ulawBuffer.length; i++) {
+                    // Read 16-bit sample (Little Endian)
+                    const low = samples[2 * i];
+                    const high = samples[2 * i + 1];
+                    let sample = (high << 8) | low;
+
+                    // Convert to signed 16-bit integer
+                    if (sample & 0x8000) {
+                        sample = sample - 0x10000;
+                    }
+
+                    // Encode to mu-law
+                    ulawBuffer[i] = encodeMuLaw(sample);
+                }
+
+                console.log(`[TTS] Conversion successful (manual encode): ${ulawBuffer.length} bytes`);
                 return ulawBuffer;
 
             } catch (waveError) {
                 console.error(`[TTS] wavefile conversion failed, falling back to ffmpeg:`, waveError);
+                // Fallthrough to ffmpeg
             }
         }
-        const { spawn } = require('child_process');
 
+        // OPTION 2: Use ffmpeg (Required for MP3, or fallback)
+        const { spawn } = require('child_process');
         return new Promise((resolve, reject) => {
             let ffmpegArgs;
 
@@ -164,7 +214,7 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     'pipe:1'               // Output to stdout
                 ];
             } else {
-                // MP3 or WAV format
+                // MP3 or WAV format (if wavefile failed)
                 ffmpegArgs = [
                     '-f', sourceFormat === 'wav' ? 'wav' : 'mp3',     // Input format
                     '-i', 'pipe:0',        // Input from stdin
@@ -217,6 +267,53 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
         console.error("[TTS] Error converting audio format:", error.message);
         throw new Error(`Audio format conversion failed: ${error.message}`);
     }
+}
+
+/**
+ * Encode a single 16-bit PCM sample to u-law
+ * @param {number} sample - Signed 16-bit integer
+ * @returns {number} - 8-bit u-law encoded byte
+ */
+function encodeMuLaw(sample) {
+    const BIAS = 0x84;
+    const CLIP = 32635;
+    let sign, exponent, mantissa, ulawbyte;
+
+    // Get sign
+    sign = (sample >> 8) & 0x80;
+    if (sign !== 0) sample = -sample;
+
+    // Clip magnitude
+    if (sample > CLIP) sample = CLIP;
+
+    sample += BIAS;
+
+    // Determine exponent
+    exponent = 7;
+    for (let exp = 0; exp < 8; exp++) {
+        if (sample < (1 << (exp + 5))) {
+            exponent = exp;
+            break; // Found exponent
+        }
+    }
+    // Correction: the loop above finds exponent such that sample < 2^(exp+5)
+    // Wait, let's use the explicit check logic which is safer
+    if (sample > 0x7FFF) exponent = 7;
+    else if (sample > 0x3FFF) exponent = 6;
+    else if (sample > 0x1FFF) exponent = 5;
+    else if (sample > 0x0FFF) exponent = 4;
+    else if (sample > 0x07FF) exponent = 3;
+    else if (sample > 0x03FF) exponent = 2;
+    else if (sample > 0x01FF) exponent = 1;
+    else exponent = 0;
+
+    // Determine mantissa
+    mantissa = (sample >> (exponent + 3)) & 0x0F;
+
+    // Assemble u-law byte
+    ulawbyte = ~(sign | (exponent << 4) | mantissa);
+
+    return ulawbyte & 0xFF;
 }
 
 module.exports = {
