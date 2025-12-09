@@ -9,8 +9,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    var _ = { label: 0, sent: function () { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
+    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function () { return this; }), g;
     function verb(n) { return function (v) { return step([n, v]); }; }
     function step(op) {
         if (f) throw new TypeError("Generator is already executing.");
@@ -70,7 +70,9 @@ var LLMService = /** @class */ (function () {
                         if ((_a = request.config) === null || _a === void 0 ? void 0 : _a.systemInstruction) {
                             geminiRequest.systemInstruction = request.config.systemInstruction;
                         }
-                        return [4 /*yield*/, geminiClient.generateContent(geminiRequest)];
+                        // Get the model instance first
+                        const model = geminiClient.models.get(request.model || 'gemini-1.5-flash');
+                        return [4 /*yield*/, model.generateContent(geminiRequest)];
                     case 2:
                         result = _b.sent();
                         responseText = '';
@@ -98,10 +100,10 @@ var LLMService = /** @class */ (function () {
                     geminiClient = this.geminiClient;
                     // Use existing Gemini implementation
                     return [2 /*return*/, geminiClient.models.generateContentStream({
-                            model: request.model,
-                            contents: request.contents,
-                            config: request.config,
-                        })];
+                        model: request.model,
+                        contents: request.contents,
+                        config: request.config,
+                    })];
                 }
                 else {
                     throw new Error("Unsupported model: ".concat(request.model));
