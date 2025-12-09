@@ -83,7 +83,12 @@ console.log('✅ Google Voice Stream Handler initialized at /voice-stream-google
 
 // Initialize Deepgram Browser Handler
 const { DeepgramBrowserHandler } = require('./services/DeepgramBrowserHandler.js');
-const deepgramBrowserHandler = new DeepgramBrowserHandler(process.env.DEEPGRAM_API_KEY, process.env.GOOGLE_GEMINI_API_KEY);
+const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+console.log('Deepgram API Key configured:', !!deepgramApiKey);
+console.log('Gemini API Key configured:', !!geminiApiKey);
+
+const deepgramBrowserHandler = new DeepgramBrowserHandler(deepgramApiKey, geminiApiKey);
 app.ws('/voice-stream-deepgram', (ws, req) => {
   deepgramBrowserHandler.handleConnection(ws, req);
 });
