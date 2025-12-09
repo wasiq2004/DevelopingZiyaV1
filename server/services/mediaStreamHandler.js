@@ -167,30 +167,33 @@ class MediaStreamHandler {
                         session.streamSid = data.start.streamSid;
                         session.isReady = true;
 
-                        // Initialize Deepgram
+                        // Initialize Deepgram with SDK v4 API
+                        console.log("🔄 Initializing Deepgram connection...");
                         const deepgramLive = this.deepgramClient.listen.live({
                             encoding: "mulaw",
                             sample_rate: 8000,
                             model: "nova-2-phonecall",
                             smart_format: true,
-                            interim_results: true,
+                            interim_results: false,  // Only final results
                             utterance_end_ms: 1000,
                             punctuate: true,
+                            language: "en-US",
                         });
 
                         session.sttStream = deepgramLive;
 
-                        deepgramLive.on("Open", () => {
+                        // Register event handlers BEFORE any audio is sent
+                        deepgramLive.on(LiveTranscriptionEvents.Open, () => {
                             console.log("✅ Deepgram connection opened and ready");
                         });
 
-                        deepgramLive.on("Transcript", async (transcriptData) => {
+                        deepgramLive.on(LiveTranscriptionEvents.Transcript, async (data) => {
                             try {
-                                // Ignore interim results - only process final transcripts
-                                if (!transcriptData.is_final) return;
+                                const transcript = data.channel?.alternatives?.[0]?.transcript;
+                                const isFinal = data.is_final;
 
-                                const transcript = transcriptData.channel?.alternatives?.[0]?.transcript;
-                                if (!transcript?.trim()) return;
+                                // Only process final transcripts
+                                if (!isFinal || !transcript?.trim()) return;
 
                                 console.log(`🎤 User said: "${transcript}"`);
 
@@ -201,7 +204,6 @@ class MediaStreamHandler {
                                 if (session.isSpeaking) {
                                     console.log(`⚠️  User interrupted agent - stopping agent speech`);
                                     session.isSpeaking = false;
-                                    // Send a mark to indicate interruption
                                     if (session.ws && session.streamSid) {
                                         session.ws.send(
                                             JSON.stringify({
@@ -227,15 +229,15 @@ class MediaStreamHandler {
                             }
                         });
 
-                        deepgramLive.on("UtteranceEnd", () => {
+                        deepgramLive.on(LiveTranscriptionEvents.UtteranceEnd, () => {
                             console.log("🎤 User finished speaking (utterance end)");
                         });
 
-                        deepgramLive.on("Error", (error) => {
+                        deepgramLive.on(LiveTranscriptionEvents.Error, (error) => {
                             console.error("❌ Deepgram error:", error);
                         });
 
-                        deepgramLive.on("Close", () => {
+                        deepgramLive.on(LiveTranscriptionEvents.Close, () => {
                             console.log("⚠️  Deepgram connection closed");
                         });
 
@@ -353,6 +355,10 @@ class MediaStreamHandler {
             const base64Audio = audioBuffer.toString("base64");
             const chunkSize = 214; // 160 bytes µ-law = 214 chars base64
             let chunksSent = 0;
+
+            console.log(`📤 Sending audio to Twilio:`);
+            console.log(`   Total base64 length: ${base64Audio.length}`);
+            console.log(`   First 50 chars: ${base64Audio.substring(0, 50)}`);
 
             for (let i = 0; i < base64Audio.length; i += chunkSize) {
                 const chunk = base64Audio.slice(i, i + chunkSize);
