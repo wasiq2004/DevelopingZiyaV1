@@ -88,7 +88,7 @@ const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API
 console.log('Deepgram API Key configured:', !!deepgramApiKey);
 console.log('Gemini API Key configured:', !!geminiApiKey);
 
-const deepgramBrowserHandler = new DeepgramBrowserHandler(deepgramApiKey, geminiApiKey);
+const deepgramBrowserHandler = new DeepgramBrowserHandler(deepgramApiKey, geminiApiKey, mysqlPool);
 app.ws('/voice-stream-deepgram', (ws, req) => {
   deepgramBrowserHandler.handleConnection(ws, req);
 });
@@ -123,6 +123,9 @@ app.use(express.urlencoded({ extended: true }));
 // Initialize and mount voice routes
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
+const documentRoutes = require('./routes/documentRoutes');
+app.use('/api/documents', documentRoutes);
+console.log('✅ Document API routes mounted at /api/documents');
 
 // Trigger initial voice sync
 voiceSyncService.syncAllProviders()
