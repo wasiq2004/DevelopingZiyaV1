@@ -30,6 +30,8 @@ class MediaStreamHandler {
             streamSid: null,
             isReady: false,
             audioQueue: [],
+            isSpeaking: false, // Track if agent is currently speaking
+            lastUserSpeechTime: null, // Track when user last spoke
         };
         sessions.set(callId, session);
         console.log(`✅ Created session for call ${callId}`);
@@ -187,6 +189,25 @@ class MediaStreamHandler {
                                 if (!transcript?.trim()) return;
 
                                 console.log(`🎤 "${transcript}"`);
+
+                                // ✅ INTERRUPTION HANDLING: User spoke
+                                session.lastUserSpeechTime = Date.now();
+
+                                // If agent is speaking, user is interrupting - stop agent
+                                if (session.isSpeaking) {
+                                    console.log(`⚠️  User interrupted agent - stopping agent speech`);
+                                    session.isSpeaking = false;
+                                    // Send a mark to indicate interruption
+                                    if (session.ws && session.streamSid) {
+                                        session.ws.send(
+                                            JSON.stringify({
+                                                event: "clear",
+                                                streamSid: session.streamSid
+                                            })
+                                        );
+                                    }
+                                }
+
                                 this.appendToContext(session, transcript, "user");
 
                                 const llmResponse = await this.callLLM(session);
@@ -313,6 +334,10 @@ class MediaStreamHandler {
                 session.audioQueue.push(audioBuffer);
                 return;
             }
+
+            // ✅ Set speaking flag
+            session.isSpeaking = true;
+
             const base64Audio = audioBuffer.toString("base64");
             const chunkSize = 214; // 160 bytes µ-law = 214 chars base64
             let chunksSent = 0;
@@ -338,9 +363,16 @@ class MediaStreamHandler {
                     mark: { name: "audio_complete" },
                 })
             );
+            const estimatedDurationMs = chunksSent * 20;
+            setTimeout(() => {
+                session.isSpeaking = false;
+                console.log(`✅ Agent finished speaking`);
+            }, estimatedDurationMs);
+
             console.log(`✅ Sent ${chunksSent} audio chunks to Twilio (streamSid: ${session.streamSid})`);
         } catch (err) {
             console.error("❌ Error sending audio to Twilio:", err);
+            session.isSpeaking = false; // Clear flag on error
         }
     }
 }
