@@ -180,6 +180,10 @@ class MediaStreamHandler {
 
                         session.sttStream = deepgramLive;
 
+                        deepgramLive.on("Open", () => {
+                            console.log("✅ Deepgram connection opened and ready");
+                        });
+
                         deepgramLive.on("Transcript", async (transcriptData) => {
                             try {
                                 // Ignore interim results - only process final transcripts
@@ -188,7 +192,7 @@ class MediaStreamHandler {
                                 const transcript = transcriptData.channel?.alternatives?.[0]?.transcript;
                                 if (!transcript?.trim()) return;
 
-                                console.log(`🎤 "${transcript}"`);
+                                console.log(`🎤 User said: "${transcript}"`);
 
                                 // ✅ INTERRUPTION HANDLING: User spoke
                                 session.lastUserSpeechTime = Date.now();
@@ -223,16 +227,16 @@ class MediaStreamHandler {
                             }
                         });
 
-                        deepgramLive.on("Error", (error) => {
-                            console.error("❌ Deepgram error:", error.message || "Unknown error");
+                        deepgramLive.on("UtteranceEnd", () => {
+                            console.log("🎤 User finished speaking (utterance end)");
                         });
 
-                        deepgramLive.on("Open", () => {
-                            console.log("✅ Deepgram opened");
+                        deepgramLive.on("Error", (error) => {
+                            console.error("❌ Deepgram error:", error);
                         });
 
                         deepgramLive.on("Close", () => {
-                            console.log("⚠️ Deepgram connection closed");
+                            console.log("⚠️  Deepgram connection closed");
                         });
 
                         // Send greeting after a short delay
@@ -371,6 +375,9 @@ class MediaStreamHandler {
                     mark: { name: "audio_complete" },
                 })
             );
+
+            // ✅ Clear speaking flag after a delay (estimate based on audio length)
+            // Approximate: 160 bytes µ-law @ 8kHz = 20ms per chunk
             const estimatedDurationMs = chunksSent * 20;
             setTimeout(() => {
                 session.isSpeaking = false;
