@@ -123,6 +123,8 @@ app.use(express.urlencoded({ extended: true }));
 // Initialize and mount voice routes
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
+
+// Mount document routes
 const documentRoutes = require('./routes/documentRoutes');
 app.use('/api/documents', documentRoutes);
 console.log('✅ Document API routes mounted at /api/documents');
