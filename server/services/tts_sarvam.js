@@ -172,6 +172,7 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     '-ac', '1',            // Channels: mono
                     '-acodec', 'pcm_mulaw', // Codec: µ-law
                     '-f', 'mulaw',         // Output format
+                    '-af', 'volume=2.0',   // Increase volume by 2x for better audibility
                     '-loglevel', 'error',  // Only show errors
                     'pipe:1'               // Output to stdout
                 ];
