@@ -2151,7 +2151,7 @@ app.post('/api/twilio/voice', async (req, res) => {
       return res.send(response.toString());
     }
 
-    const appUrl = process.env.APP_URL;
+    let appUrl = process.env.APP_URL;
     if (!appUrl) {
       console.error('❌ APP_URL not configured!');
       const VoiceResponse = require('twilio').twiml.VoiceResponse;
@@ -2162,6 +2162,12 @@ app.post('/api/twilio/voice', async (req, res) => {
       return res.send(response.toString());
     }
 
+    // Ensure appUrl has protocol
+    if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+      appUrl = `https://${appUrl}`;
+    }
+
+    // Convert to WebSocket protocol
     const wsUrl = appUrl.replace('https://', 'wss://').replace('http://', 'ws://');
     const actualCallId = callId || CallSid;
     const streamUrl = `${wsUrl}/api/call?callId=${actualCallId}&agentId=${agentId}&contactId=${CallSid}`;
