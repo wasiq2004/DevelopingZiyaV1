@@ -198,6 +198,10 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     const ulawBuffer = fullBuffer.slice(24);
 
                     console.log(`[TTS] Conversion successful: ${ulawBuffer.length} bytes (stripped AU header)`);
+                    console.log(`[TTS] Full buffer size: ${fullBuffer.length} bytes`);
+                    console.log(`[TTS] First 20 bytes (hex): ${ulawBuffer.slice(0, 20).toString('hex')}`);
+                    console.log(`[TTS] First 20 bytes (decimal): [${Array.from(ulawBuffer.slice(0, 20)).join(', ')}]`);
+                    console.log(`[TTS] Duration: ${(ulawBuffer.length / 8000).toFixed(2)} seconds @ 8kHz`);
                     resolve(ulawBuffer);
                 } else {
                     console.error(`[TTS] ffmpeg failed with code ${code}`);
