@@ -1,5 +1,4 @@
 const nodeFetch = require("node-fetch");
-const { WaveFile } = require('wavefile');
 
 /**
  * Sarvam TTS Service
@@ -142,58 +141,10 @@ function detectAudioFormat(buffer) {
  */
 async function convertToUlaw(audioBuffer, sourceFormat) {
     try {
+        const { spawn } = require('child_process');
+
         console.log(`[TTS] Converting ${sourceFormat} (${audioBuffer.length} bytes) to ulaw_8000...`);
 
-        // OPTION 1: Use wavefile for WAV and Raw PCM (Pure JS, no ffmpeg needed)
-        // explicitly excluding mp3 to force ffmpeg path for mp3 as requested
-        if (sourceFormat !== 'mp3' && (sourceFormat === 'wav' || sourceFormat === 's16le' || sourceFormat === 'unknown')) {
-            try {
-                const wav = new WaveFile();
-
-                if (sourceFormat === 'wav') {
-                    // Load existing WAV
-                    wav.fromBuffer(audioBuffer);
-                } else {
-                    // Assume Raw PCM: 24kHz, 1 channel, 16-bit (Sarvam default)
-                    // If sourceFormat is unknown, we guess it's raw 24k PCM
-                    wav.fromScratch(1, 24000, '16', audioBuffer);
-                }
-
-                // Resample to 8000Hz
-                wav.toSampleRate(8000);
-
-                // Extract samples. wav.data.samples determines the samples as bytes (Uint8Array)
-                // We need to interpret them as 16-bit PCM (Little Endian)
-                // Safely get samples as Int16 array
-                // This handles endianness and channel separation for us
-                let samples = wav.getSamples(false, Int16Array);
-
-                // If stereo (array of arrays), mix down or take first channel
-                if (Array.isArray(samples) && samples.length > 0 && samples[0].length !== undefined && typeof samples[0] !== 'number') {
-                    // Stereo or multi-channel: samples is [channel1, channel2]
-                    console.log(`[TTS] Multiple channels detected, using first channel`);
-                    samples = samples[0];
-                }
-
-                const length = samples.length;
-                const ulawBuffer = Buffer.alloc(length);
-
-                for (let i = 0; i < length; i++) {
-                    let sample = samples[i];
-                    ulawBuffer[i] = encodeMuLaw(sample);
-                }
-
-                console.log(`[TTS] Conversion successful (manual encode): ${ulawBuffer.length} bytes`);
-                return ulawBuffer;
-
-            } catch (waveError) {
-                console.error(`[TTS] wavefile conversion failed, falling back to ffmpeg:`, waveError);
-                // Fallthrough to ffmpeg
-            }
-        }
-
-        // OPTION 2: Use ffmpeg (Required for MP3, or fallback)
-        const { spawn } = require('child_process');
         return new Promise((resolve, reject) => {
             let ffmpegArgs;
 
@@ -213,9 +164,9 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     'pipe:1'               // Output to stdout
                 ];
             } else {
-                // MP3 or WAV format (if wavefile failed)
+                // MP3 or WAV format
                 ffmpegArgs = [
-                    '-f', sourceFormat === 'wav' ? 'wav' : 'mp3',     // Input format
+                    '-f', sourceFormat,     // Input format
                     '-i', 'pipe:0',        // Input from stdin
                     '-ar', '8000',         // Sample rate: 8kHz
                     '-ac', '1',            // Channels: mono
@@ -244,7 +195,7 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
             ffmpeg.on('close', (code) => {
                 if (code === 0) {
                     const ulawBuffer = Buffer.concat(chunks);
-                    console.log(`[TTS] Conversion successful (using ffmpeg): ${ulawBuffer.length} bytes`);
+                    console.log(`[TTS] Conversion successful: ${ulawBuffer.length} bytes`);
                     resolve(ulawBuffer);
                 } else {
                     console.error(`[TTS] ffmpeg failed with code ${code}`);
@@ -266,53 +217,6 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
         console.error("[TTS] Error converting audio format:", error.message);
         throw new Error(`Audio format conversion failed: ${error.message}`);
     }
-}
-
-/**
- * Encode a single 16-bit PCM sample to u-law
- * @param {number} sample - Signed 16-bit integer
- * @returns {number} - 8-bit u-law encoded byte
- */
-function encodeMuLaw(sample) {
-    const BIAS = 0x84;
-    const CLIP = 32635;
-    let sign, exponent, mantissa, ulawbyte;
-
-    // Get sign
-    sign = (sample >> 8) & 0x80;
-    if (sign !== 0) sample = -sample;
-
-    // Clip magnitude
-    if (sample > CLIP) sample = CLIP;
-
-    sample += BIAS;
-
-    // Determine exponent
-    exponent = 7;
-    for (let exp = 0; exp < 8; exp++) {
-        if (sample < (1 << (exp + 5))) {
-            exponent = exp;
-            break; // Found exponent
-        }
-    }
-    // Correction: the loop above finds exponent such that sample < 2^(exp+5)
-    // Wait, let's use the explicit check logic which is safer
-    if (sample > 0x7FFF) exponent = 7;
-    else if (sample > 0x3FFF) exponent = 6;
-    else if (sample > 0x1FFF) exponent = 5;
-    else if (sample > 0x0FFF) exponent = 4;
-    else if (sample > 0x07FF) exponent = 3;
-    else if (sample > 0x03FF) exponent = 2;
-    else if (sample > 0x01FF) exponent = 1;
-    else exponent = 0;
-
-    // Determine mantissa
-    mantissa = (sample >> (exponent + 3)) & 0x0F;
-
-    // Assemble u-law byte
-    ulawbyte = ~(sign | (exponent << 4) | mantissa);
-
-    return ulawbyte & 0xFF;
 }
 
 module.exports = {
