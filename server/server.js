@@ -2172,15 +2172,7 @@ app.post('/api/twilio/voice', async (req, res) => {
     const VoiceResponse = require('twilio').twiml.VoiceResponse;
     const response = new VoiceResponse();
 
-    // Start with a greeting so user knows call connected
-    response.say({
-      voice: 'Polly.Joanna'
-    }, 'Please wait while I connect you to an agent.');
-
-    // Small pause
-    response.pause({ length: 1 });
-
-    // Create Connect verb with Stream
+    // Connect directly to WebSocket stream (agent will send greeting)
     const connect = response.connect();
     const stream = connect.stream({
       url: streamUrl,
