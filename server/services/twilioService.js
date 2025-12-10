@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { encrypt, decrypt } = require('../utils/encryption.js');
 
 class TwilioService {
-  constructor() {}
+  constructor() { }
 
   // Get Twilio client for a specific user's account
   getClientForUser(accountSid, authToken) {
@@ -248,7 +248,7 @@ class TwilioService {
         } catch (decryptError) {
           console.error('Error decrypting auth token for number:', row.phone_number, decryptError);
         }
-        
+
         return {
           id: row.id,
           userId: row.user_id,
@@ -278,7 +278,7 @@ class TwilioService {
 
       if (!rows || rows.length === 0) return null;
       const row = rows[0];
-      
+
       // Decrypt the auth token before returning
       let decryptedAuthToken = row.twilio_auth_token;
       try {
@@ -286,7 +286,7 @@ class TwilioService {
       } catch (decryptError) {
         console.error('Error decrypting auth token for number:', row.phone_number, decryptError);
       }
-      
+
       return {
         id: row.id,
         userId: row.user_id,
@@ -312,15 +312,22 @@ class TwilioService {
       if (!twilioNumber.verified) throw new Error('Twilio number is not verified');
 
       const client = this.getClientForUser(twilioNumber.twilioAccountSid, twilioNumber.twilioAuthToken);
-      
+
+      // ✅ Ensure appUrl has protocol (add https:// if missing)
+      let appUrl = params.appUrl;
+      if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+        appUrl = `https://${appUrl}`;
+        console.log(`⚠️ Added https:// protocol to APP_URL: ${appUrl}`);
+      }
+
       // ✅ FIXED: Use correct webhook URLs that match server.js endpoints
-      const voiceUrl = `${params.appUrl}/api/twilio/voice?userId=${params.userId}&agentId=${params.agentId}&callId=${params.callId}`;
-      const statusCallback = `${params.appUrl}/api/twilio/callback?userId=${params.userId}&callId=${params.callId}`;
-      
+      const voiceUrl = `${appUrl}/api/twilio/voice?userId=${params.userId}&agentId=${params.agentId}&callId=${params.callId}`;
+      const statusCallback = `${appUrl}/api/twilio/callback?userId=${params.userId}&callId=${params.callId}`;
+
       console.log('🔗 Creating Twilio call with webhooks:');
       console.log('   Voice URL:', voiceUrl);
       console.log('   Status Callback:', statusCallback);
-      
+
       const call = await client.calls.create({
         to: params.to,
         from: twilioNumber.phoneNumber,
@@ -330,7 +337,7 @@ class TwilioService {
         statusCallbackMethod: 'POST',
         record: false // Set to true if you want call recording
       });
-      
+
       console.log('✅ Twilio call created:', call.sid);
       return call;
     } catch (err) {
