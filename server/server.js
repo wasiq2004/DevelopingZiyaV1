@@ -89,7 +89,7 @@ const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API
 console.log('Deepgram API Key configured:', !!deepgramApiKey);
 console.log('Gemini API Key configured:', !!geminiApiKey);
 
-const deepgramBrowserHandler = new DeepgramBrowserHandler(deepgramApiKey, geminiApiKey);
+const deepgramBrowserHandler = new DeepgramBrowserHandler(deepgramApiKey, geminiApiKey, mysqlPool);
 app.ws('/voice-stream-deepgram', (ws, req) => {
   deepgramBrowserHandler.handleConnection(ws, req);
 });
