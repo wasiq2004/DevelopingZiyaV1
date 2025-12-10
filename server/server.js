@@ -127,6 +127,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
 
+// Initialize and mount call routes
+const callRoutes = require('./routes/callRoutes.js');
+app.set('mysqlPool', mysqlPool); // Make pool available to routes
+app.use('/api/calls', callRoutes);
+console.log('✅ Call API routes mounted at /api/calls');
+
 // Trigger initial voice sync
 voiceSyncService.syncAllProviders()
   .then(result => {
