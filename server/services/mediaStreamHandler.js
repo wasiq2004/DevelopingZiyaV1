@@ -400,9 +400,12 @@ class MediaStreamHandler {
             let chunksSent = 0;
 
             console.log(`📤 Sending audio to Twilio:`);
-            console.log(`   Total base64 length: ${base64Audio.length}`);
             console.log(`   Raw buffer length: ${audioBuffer.length} bytes`);
-            console.log(`   First 50 chars: ${base64Audio.substring(0, 50)}`);
+            console.log(`   Total base64 length: ${base64Audio.length}`);
+            console.log(`   First 20 bytes (hex): ${audioBuffer.slice(0, 20).toString('hex')}`);
+            console.log(`   First 20 bytes (decimal): [${Array.from(audioBuffer.slice(0, 20)).join(', ')}]`);
+            console.log(`   First 50 base64 chars: ${base64Audio.substring(0, 50)}`);
+            console.log(`   Expected chunks: ${Math.ceil(base64Audio.length / chunkSize)}`);
 
             // Send chunks with small delays for better playback
             let offset = 0;
