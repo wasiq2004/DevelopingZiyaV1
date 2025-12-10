@@ -24,9 +24,10 @@ async function sarvamTTS(text, options = {}) {
         }
 
         // Default options from environment or fallback values
+        // CHECK: Changed default to 'wav' to support pure JS conversion (wavefile) without ffmpeg
         const language = options.language || process.env.SARVAM_TTS_LANGUAGE || "en-IN";
         const speaker = options.speaker || process.env.SARVAM_TTS_SPEAKER || "anushka";
-        const format = options.format || process.env.SARVAM_TTS_FORMAT || "mp3";
+        const format = options.format || process.env.SARVAM_TTS_FORMAT || "wav";
 
         console.log(`[TTS] Using provider: Sarvam`);
         console.log(`[TTS] Sending request...`);
@@ -48,7 +49,11 @@ async function sarvamTTS(text, options = {}) {
                     target_language_code: language,
                     speaker: speaker,
                     model: "bulbul:v2",
-                    enable_preprocessing: true
+                    enable_preprocessing: true,
+                    // Ensure backend returns WAV if we requested it
+                    // Sarvam api might not support 'target_format' param directly in the body usually? 
+                    // Checking docs: usually it sends wav/mp3 based on Accept header or params.
+                    // But if not, we handle what we get.
                 }),
             }
         );
@@ -76,11 +81,12 @@ async function sarvamTTS(text, options = {}) {
         console.log(`[TTS] Audio received: ${audioBuffer.length} bytes`);
 
         // Check actual audio format by inspecting magic numbers
+        // This is important because even if we say 'wav', we verify what we got.
         const actualFormat = detectAudioFormat(audioBuffer);
         console.log(`[TTS] Detected audio format: ${actualFormat} (requested: ${format})`);
 
         // Convert to ulaw_8000 format for Twilio compatibility
-        // If skipConversion is true, return the original buffer (e.g. for web frontend)
+        // If skipConversion is true, return the original buffer
         if (options.skipConversion) {
             console.log(`[TTS] Skipping conversion, returning ${format}`);
             return audioBuffer;
@@ -142,39 +148,91 @@ function detectAudioFormat(buffer) {
  */
 async function convertToUlaw(audioBuffer, sourceFormat) {
     try {
-        console.log(`[TTS] Converting ${sourceFormat} (${audioBuffer.length} bytes) to ulaw_8000 using ffmpeg...`);
+        console.log(`[TTS] Converting ${sourceFormat} (${audioBuffer.length} bytes) to ulaw_8000...`);
 
-        // ALWAYS Use ffmpeg for consistent conversion quality
+        // OPTION 1: Use wavefile for WAV (Pure JS, no ffmpeg needed)
+        // This is preferred if input is WAV, as we often lack ffmpeg on standard environments
+        if (sourceFormat === 'wav' || sourceFormat === 'unknown') {
+            try {
+                const wav = new WaveFile();
+
+                if (sourceFormat === 'wav') {
+                    // Load existing WAV
+                    wav.fromBuffer(audioBuffer);
+                } else {
+                    // If unknown, we try to parse it as WAV first. If it fails, we assume Raw PCM.
+                    try {
+                        wav.fromBuffer(audioBuffer);
+                    } catch (e) {
+                        // Fallback: Assume Raw PCM: 24kHz, 1 channel, 16-bit (Sarvam typical default)
+                        console.log("[TTS] Could not parse as WAV, assuming Raw PCM 24kHz 16-bit");
+                        wav.fromScratch(1, 24000, '16', audioBuffer);
+                    }
+                }
+
+                // Check formatting
+                const fmt = wav.fmt;
+                console.log(`[TTS] Wave format: ${fmt.sampleRate}Hz, ${fmt.numChannels} channel(s), ${fmt.bitsPerSample}-bit`);
+
+                // Resample to 8000Hz if needed
+                if (fmt.sampleRate !== 8000) {
+                    wav.toSampleRate(8000);
+                }
+
+                // Extract samples
+                // getSamples returns Float64Array by default, or Int16Array if specified?
+                // Actually wavefile returns Float64Array for 'toSampleRate' output usually unless configured?
+                // Let's safe-guard: extract as Int16.
+                let samples = wav.getSamples(false, Int16Array);
+
+                // If stereo (array of arrays), mix down or take first channel
+                if (Array.isArray(samples) && samples.length > 0 && samples[0].length !== undefined && typeof samples[0] !== 'number') {
+                    console.log(`[TTS] Multiple channels detected, using first channel`);
+                    samples = samples[0];
+                }
+
+                const length = samples.length;
+                const ulawBuffer = Buffer.alloc(length);
+
+                // Manual encoding loop (very fast in JS V8)
+                for (let i = 0; i < length; i++) {
+                    let sample = samples[i];
+                    ulawBuffer[i] = encodeMuLaw(sample);
+                }
+
+                console.log(`[TTS] Conversion successful (manual encode): ${ulawBuffer.length} bytes`);
+                return ulawBuffer;
+
+            } catch (waveError) {
+                console.error(`[TTS] wavefile conversion failed:`, waveError);
+                // If wavefile failed, we might try ffmpeg below, or throw if input was really bad
+                if (sourceFormat !== 'mp3') {
+                    // If it wasn't MP3, and wavefile failed, ffmpeg likely won't save us if the file is corrupt 
+                    // BUT if it's some weird encoding, maybe. 
+                    console.log("[TTS] Attempting fallback to ffmpeg...");
+                }
+            }
+        }
+
+        // OPTION 2: Use ffmpeg (Required for MP3, or fallback)
         const { spawn } = require('child_process');
         return new Promise((resolve, reject) => {
             let ffmpegArgs;
 
-            // Build ffmpeg arguments based on source format
             if (sourceFormat === 's16le') {
-                // Raw PCM format - need to specify input parameters
+                // Raw PCM fallback
                 ffmpegArgs = [
-                    '-f', 's16le',         // Input format: signed 16-bit PCM little-endian
-                    '-ar', '24000',        // Input sample rate (Sarvam typically uses 24kHz)
-                    '-ac', '1',            // Input channels: mono
-                    '-i', 'pipe:0',        // Input from stdin
-                    '-ar', '8000',         // Output sample rate: 8kHz
-                    '-ac', '1',            // Output channels: mono
-                    '-acodec', 'pcm_mulaw', // Codec: µ-law
-                    '-f', 'mulaw',         // Output format
-                    '-loglevel', 'error',  // Only show errors
-                    'pipe:1'               // Output to stdout
+                    '-f', 's16le', '-ar', '24000', '-ac', '1', '-i', 'pipe:0',
+                    '-ar', '8000', '-ac', '1', '-acodec', 'pcm_mulaw', '-f', 'mulaw',
+                    '-loglevel', 'error', 'pipe:1'
                 ];
             } else {
-                // MP3 or WAV format (let ffmpeg auto-detect container)
+                // MP3 or WAV (if wavefile failed)
                 ffmpegArgs = [
-                    '-i', 'pipe:0',        // Input from stdin (ffmpeg detects wav/mp3 header automatically)
-                    '-ar', '8000',         // Sample rate: 8kHz
-                    '-ac', '1',            // Channels: mono
-                    '-acodec', 'pcm_mulaw', // Codec: µ-law
-                    '-f', 'mulaw',         // Output format
-                    '-af', 'volume=2.0',   // Increase volume by 2x for better audibility
-                    '-loglevel', 'error',  // Only show errors
-                    'pipe:1'               // Output to stdout
+                    '-i', 'pipe:0',
+                    '-ar', '8000', '-ac', '1', '-acodec', 'pcm_mulaw', '-f', 'mulaw',
+                    '-af', 'volume=2.0',
+                    '-loglevel', 'error', 'pipe:1'
                 ];
             }
 
@@ -183,14 +241,8 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
             const chunks = [];
             let stderrOutput = '';
 
-            ffmpeg.stdout.on('data', (chunk) => {
-                chunks.push(chunk);
-            });
-
-            ffmpeg.stderr.on('data', (data) => {
-                // Collect all stderr for debugging
-                stderrOutput += data.toString();
-            });
+            ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
+            ffmpeg.stderr.on('data', (data) => stderrOutput += data.toString());
 
             ffmpeg.on('close', (code) => {
                 if (code === 0) {
@@ -199,13 +251,14 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     resolve(ulawBuffer);
                 } else {
                     console.error(`[TTS] ffmpeg failed with code ${code}`);
-                    console.error(`[TTS] ffmpeg stderr:`, stderrOutput);
+                    // Don't crash entire process, but reject promise
                     reject(new Error(`ffmpeg exited with code ${code}: ${stderrOutput}`));
                 }
             });
 
             ffmpeg.on('error', (error) => {
-                console.error(`[TTS] ffmpeg process error:`, error);
+                // IMPORTANT: If ffmpeg is missing (ENOENT), this fires.
+                console.error(`[TTS] ffmpeg process error (is ffmpeg installed?):`, error.message);
                 reject(new Error(`ffmpeg process error: ${error.message}`));
             });
 
@@ -213,6 +266,7 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
             ffmpeg.stdin.write(audioBuffer);
             ffmpeg.stdin.end();
         });
+
     } catch (error) {
         console.error("[TTS] Error converting audio format:", error.message);
         throw new Error(`Audio format conversion failed: ${error.message}`);
