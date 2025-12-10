@@ -58,12 +58,13 @@ router.get('/:userId', async (req, res) => {
         const query = `
             SELECT 
                 c.id,
+                c.user_id,
                 c.call_sid,
                 c.from_number,
                 c.to_number,
+                c.direction,
                 c.status,
                 c.call_type,
-                c.timestamp,
                 c.started_at,
                 c.ended_at,
                 c.duration,
@@ -73,7 +74,7 @@ router.get('/:userId', async (req, res) => {
             FROM calls c
             LEFT JOIN agents a ON c.agent_id = a.id
             WHERE ${whereClause}
-            ORDER BY c.timestamp DESC
+            ORDER BY c.started_at DESC
             LIMIT ? OFFSET ?
         `;
 
@@ -87,12 +88,13 @@ router.get('/:userId', async (req, res) => {
             callSid: call.call_sid,
             fromNumber: call.from_number,
             toNumber: call.to_number,
+            direction: call.direction,
             status: call.status,
-            callType: call.call_type,
-            timestamp: call.timestamp,
+            callType: call.call_type || 'web_call',
+            timestamp: call.started_at, // Use started_at as timestamp
             startedAt: call.started_at,
             endedAt: call.ended_at,
-            duration: call.duration,
+            duration: call.duration || 0,
             recordingUrl: call.recording_url,
             agentId: call.agent_id,
             agentName: call.agent_name || 'Unknown Agent'
