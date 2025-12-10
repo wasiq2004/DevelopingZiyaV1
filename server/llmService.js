@@ -72,6 +72,16 @@ var LLMService = /** @class */ (function () {
                             model: modelName,
                             systemInstruction: (_a = request.config) === null || _a === void 0 ? void 0 : _a.systemInstruction
                         });
+
+                        // Convert 'contents' (which might be multi-turn chat history) to correct format if needed
+                        // But generateContent usually takes a string or parts.
+                        // If 'contents' is an array of messages, we might need to use startChat().sendMessage() 
+                        // or pass just the last message if we are stateless? 
+                        // Wait, GoogleGenerativeAI.generateContent() is for single turn.
+                        // But request.contents is likely the whole history?
+                        // If it's history, we should use array of { role: 'user'|'model', parts: [...] }
+
+                        // Using { contents: [...] } format for multi-turn history
                         return [4 /*yield*/, model.generateContent({ contents: request.contents })];
                     case 2:
                         result = _b.sent();
