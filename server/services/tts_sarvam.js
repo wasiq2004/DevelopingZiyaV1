@@ -159,7 +159,7 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                     '-ar', '8000',         // Output sample rate: 8kHz
                     '-ac', '1',            // Output channels: mono
                     '-acodec', 'pcm_mulaw', // Codec: µ-law
-                    '-f', 'mulaw',         // Output format
+                    '-f', 'data',          // Output format: raw data (no container)
                     '-loglevel', 'error',  // Only show errors
                     'pipe:1'               // Output to stdout
                 ];
@@ -168,11 +168,11 @@ async function convertToUlaw(audioBuffer, sourceFormat) {
                 ffmpegArgs = [
                     '-f', sourceFormat,     // Input format
                     '-i', 'pipe:0',        // Input from stdin
+                    '-af', 'volume=1.5',   // Increase volume for better audibility
                     '-ar', '8000',         // Sample rate: 8kHz
                     '-ac', '1',            // Channels: mono
                     '-acodec', 'pcm_mulaw', // Codec: µ-law
-                    '-f', 'mulaw',         // Output format
-                    '-af', 'volume=2.0',   // Increase volume by 2x for better audibility
+                    '-f', 'data',          // Output format: raw data (no container)
                     '-loglevel', 'error',  // Only show errors
                     'pipe:1'               // Output to stdout
                 ];
