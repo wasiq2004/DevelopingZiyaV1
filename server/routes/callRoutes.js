@@ -36,12 +36,12 @@ router.get('/:userId', async (req, res) => {
         }
 
         if (startDate) {
-            whereConditions.push('c.timestamp >= ?');
+            whereConditions.push('c.started_at >= ?');
             queryParams.push(startDate);
         }
 
         if (endDate) {
-            whereConditions.push('c.timestamp <= ?');
+            whereConditions.push('c.started_at <= ?');
             queryParams.push(endDate);
         }
 
