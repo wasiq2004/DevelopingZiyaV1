@@ -17,7 +17,7 @@ const { ApiKeyService } = require('./services/apiKeyService.js');
 const { ExternalApiService } = require('./services/externalApiService.js');
 const { PhoneNumberService } = require('./services/phoneNumberService.js');
 const AgentService = require('./services/agentService.js');
-const { CampaignService } = require('./services/campaignService.js');
+const CampaignService = require('./services/campaignService.js');
 const { AuthService } = require('./services/authService.js');
 const TwilioService = require('./services/twilioService.js');
 const { TwilioBasicService } = require('./services/twilioBasicService.js');
@@ -25,10 +25,14 @@ const { MediaStreamHandler } = require('./services/mediaStreamHandler.js');
 const { ElevenLabsStreamHandler } = require('./services/elevenLabsStreamHandler.js');
 const AdminService = require('./services/adminService.js');
 const WalletService = require('./services/walletService.js');
+const CostCalculator = require('./services/costCalculator.js');
 const VoiceSyncService = require('./services/voiceSyncService.js');
 const VoiceWebSocketHandler = require('./services/voiceWebSocketHandler.js');
 const { router: voiceRouter, initVoiceSync } = require('./routes/voiceRoutes.js');
+
+// Initialize wallet and cost services
 const walletService = new WalletService(mysqlPool);
+const costCalculator = new CostCalculator(mysqlPool, walletService);
 
 // Init server
 const app = express();
@@ -52,7 +56,7 @@ console.log('PORT:', PORT);
 console.log('========================');
 
 // Instantiate ONLY services that require instances
-const campaignService = new CampaignService(mysqlPool);
+const campaignService = new CampaignService(mysqlPool, walletService, costCalculator);
 const authService = new AuthService(mysqlPool);
 const twilioService = new TwilioService();
 const twilioBasicService = new TwilioBasicService();
