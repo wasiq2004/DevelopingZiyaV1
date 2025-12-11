@@ -1,17 +1,26 @@
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 const { LLMService } = require("../llmService.js");
 const nodeFetch = require("node-fetch");
+const WalletService = require('./walletService.js');
+const CostCalculator = require('./costCalculator.js');
 
 const sessions = new Map();
 
 class MediaStreamHandler {
-    constructor(deepgramApiKey, geminiApiKey, campaignService) {
+    constructor(deepgramApiKey, geminiApiKey, campaignService, mysqlPool = null) {
         if (!deepgramApiKey) throw new Error("Missing Deepgram API Key");
         if (!geminiApiKey) throw new Error("Missing Gemini API Key");
 
         this.deepgramClient = createClient(deepgramApiKey);
         this.llmService = new LLMService(geminiApiKey);
         this.campaignService = campaignService;
+        this.mysqlPool = mysqlPool;
+
+        // Initialize wallet and cost tracking services
+        if (mysqlPool) {
+            this.walletService = new WalletService(mysqlPool);
+            this.costCalculator = new CostCalculator(mysqlPool, this.walletService);
+        }
     }
 
     // ✅ FIX: Method to get fresh API key each time
@@ -19,7 +28,7 @@ class MediaStreamHandler {
         return process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
     }
 
-    createSession(callId, agentPrompt, agentVoiceId, ws) {
+    createSession(callId, agentPrompt, agentVoiceId, ws, userId = null, agentId = null) {
         const session = {
             callId,
             context: [],
@@ -32,6 +41,17 @@ class MediaStreamHandler {
             audioQueue: [],
             isSpeaking: false, // Track if agent is currently speaking
             lastUserSpeechTime: null, // Track when user last spoke
+            userId: userId,
+            agentId: agentId,
+            startTime: new Date(),
+            // Usage tracking for billing
+            usage: {
+                twilio: 0,        // minutes
+                deepgram: 0,      // seconds
+                gemini: 0,        // tokens
+                elevenlabs: 0,    // characters
+                sarvam: 0         // characters
+            }
         };
         sessions.set(callId, session);
         console.log(`✅ Created session for call ${callId}`);
@@ -43,6 +63,29 @@ class MediaStreamHandler {
     endSession(callId) {
         const session = sessions.get(callId);
         if (session) {
+            // Calculate and charge for Twilio usage
+            if (session.startTime && session.userId && this.costCalculator) {
+                const endTime = new Date();
+                const durationSeconds = (endTime - session.startTime) / 1000;
+                const durationMinutes = durationSeconds / 60;
+                session.usage.twilio = durationMinutes;
+
+                // Charge user for all usage
+                this.costCalculator.recordAndCharge(
+                    session.userId,
+                    session.callId,
+                    session.usage
+                ).then(result => {
+                    console.log(`✅ Charged user ${session.userId}: $${result.totalCharged.toFixed(4)}`);
+                    console.log('   Breakdown:', result.breakdown);
+                }).catch(err => {
+                    console.error('❌ Error charging user:', err.message);
+                    if (err.message === 'Insufficient balance') {
+                        console.warn(`⚠️ User ${session.userId} ended call with insufficient balance`);
+                    }
+                });
+            }
+
             if (session.sttStream) {
                 session.sttStream.finish();
                 session.sttStream.removeAllListeners();
@@ -185,7 +228,7 @@ class MediaStreamHandler {
                         }
 
                         // Create session with the correct voice ID
-                        session = this.createSession(callId, agentPrompt, agentVoiceId, ws);
+                        session = this.createSession(callId, agentPrompt, agentVoiceId, ws, userId, agentId);
                         session.tools = tools; // Store tools in session
                         console.log(`✅ Session created with voice ID: ${session.agentVoiceId}`);
 
@@ -226,6 +269,11 @@ class MediaStreamHandler {
                                 // ✅ INTERRUPTION HANDLING: User spoke
                                 session.lastUserSpeechTime = Date.now();
 
+                                // Track Deepgram usage (estimate based on word count)
+                                const wordCount = transcript.split(' ').length;
+                                const estimatedDuration = wordCount / 2.5; // avg 2.5 words/second
+                                session.usage.deepgram += estimatedDuration;
+
                                 // If agent is speaking, user is interrupting - stop agent
                                 if (session.isSpeaking) {
                                     console.log(`⚠️  User interrupted agent - stopping agent speech`);
@@ -245,8 +293,8 @@ class MediaStreamHandler {
                                 const llmResponse = await this.callLLM(session);
                                 this.appendToContext(session, llmResponse, "model");
 
-                                console.log(`🔊 Synthesizing response with voice: ${session.agentVoiceId}`);
-                                const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId);
+                                // Generate TTS and send to Twilio
+                                const ttsAudio = await this.synthesizeTTS(llmResponse, session.agentVoiceId, session);
                                 if (ttsAudio) {
                                     this.sendAudioToTwilio(session, ttsAudio);
                                 }
@@ -295,7 +343,7 @@ class MediaStreamHandler {
                                 console.log(`🔗 Stream SID: ${session.streamSid}`);
                                 console.log(`✅ Stream ready: ${session.isReady}`);
 
-                                const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId);
+                                const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId, session);
 
                                 if (audio && audio.length > 0) {
                                     console.log(`✅ Greeting audio generated: ${audio.length} bytes`);
@@ -373,6 +421,14 @@ class MediaStreamHandler {
             let text = response.text;
             console.log("🧠 Gemini response received:", text);
 
+            // Track Gemini token usage
+            if (response.usageMetadata && session.usage) {
+                const totalTokens = (response.usageMetadata.promptTokenCount || 0) +
+                    (response.usageMetadata.candidatesTokenCount || 0);
+                session.usage.gemini += totalTokens;
+                console.log(`📊 Gemini tokens used: ${totalTokens} (Total: ${session.usage.gemini})`);
+            }
+
             // Check for Tool Call (JSON format)
             try {
                 // Remove potential markdown code blocks if present
@@ -418,7 +474,8 @@ class MediaStreamHandler {
             return "I apologize, I'm having trouble processing that right now.";
         }
     }
-    async synthesizeTTS(text, voiceId) {
+
+    async synthesizeTTS(text, voiceId, session = null) {
         try {
             // Use TTS controller for provider abstraction
             const { generateTTS } = require('./tts_controller.js');
@@ -426,6 +483,20 @@ class MediaStreamHandler {
             console.log(`🔊 Synthesizing TTS with voice: ${voiceId}`);
 
             const audioBuffer = await generateTTS(text, { voiceId });
+
+            // Track TTS usage for billing
+            if (session && session.usage) {
+                const characterCount = text.length;
+                const isSarvam = voiceId && (voiceId.includes('sarvam') || voiceId.includes('anushka') || voiceId.includes('arvind'));
+
+                if (isSarvam) {
+                    session.usage.sarvam += characterCount;
+                    console.log(`📊 Sarvam TTS: ${characterCount} characters (Total: ${session.usage.sarvam})`);
+                } else {
+                    session.usage.elevenlabs += characterCount;
+                    console.log(`📊 ElevenLabs TTS: ${characterCount} characters (Total: ${session.usage.elevenlabs})`);
+                }
+            }
 
             if (!audioBuffer) {
                 console.error("❌ TTS generation returned null");
