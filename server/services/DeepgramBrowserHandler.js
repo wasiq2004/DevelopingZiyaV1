@@ -1,5 +1,7 @@
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 const { LLMService } = require("../llmService.js");
+const WalletService = require('./walletService.js');
+const CostCalculator = require('./costCalculator.js');
 
 const sessions = new Map();
 
@@ -11,6 +13,12 @@ class DeepgramBrowserHandler {
         this.deepgramClient = createClient(deepgramApiKey);
         this.llmService = new LLMService(geminiApiKey);
         this.mysqlPool = mysqlPool; // Add database pool for call logging
+
+        // Initialize wallet and cost tracking services
+        if (mysqlPool) {
+            this.walletService = new WalletService(mysqlPool);
+            this.costCalculator = new CostCalculator(mysqlPool, this.walletService);
+        }
     }
 
     createSession(connectionId, agentPrompt, agentVoiceId, ws, userId = null, agentId = null) {
@@ -28,6 +36,15 @@ class DeepgramBrowserHandler {
             agentId: agentId,
             callId: null, // Will be set when call is logged
             startTime: new Date(),
+            // Usage tracking for billing
+            usage: {
+                deepgram: 0,      // seconds
+                gemini: 0,        // tokens
+                elevenlabs: 0,    // characters
+                sarvam: 0         // characters
+            },
+            audioStartTime: null,
+            totalAudioDuration: 0
         };
         sessions.set(connectionId, session);
         console.log(`✅ Created browser session ${connectionId} for user ${userId}, agent ${agentId}`);
@@ -121,7 +138,7 @@ class DeepgramBrowserHandler {
                         }));
 
                         // Send audio
-                        const audio = await this.synthesizeTTS(greetingMessage, session.agentVoiceId);
+                        const audio = await this.synthesizeTTS(greetingMessage, session.agentVoiceId, session);
                         if (audio) {
                             this.sendAudioToClient(session, audio);
                         }
@@ -161,6 +178,17 @@ class DeepgramBrowserHandler {
                     console.log(`🎤 User (Browser): "${transcript}"`);
                     session.lastUserSpeechTime = Date.now();
 
+                    // Track Deepgram usage (estimate ~1 second per transcript)
+                    // More accurate: track actual audio duration if available
+                    if (data.duration) {
+                        session.usage.deepgram += data.duration;
+                    } else {
+                        // Fallback: estimate based on word count (avg 2.5 words/second)
+                        const wordCount = transcript.split(' ').length;
+                        const estimatedDuration = wordCount / 2.5;
+                        session.usage.deepgram += estimatedDuration;
+                    }
+
                     // Send transcript to client for UI display
                     if (ws.readyState === ws.OPEN) {
                         ws.send(JSON.stringify({
@@ -193,7 +221,7 @@ class DeepgramBrowserHandler {
 
                     // Generate TTS in parallel (don't await - let it happen in background)
                     console.log(`🔊 Synthesizing response...`);
-                    this.synthesizeTTS(llmResponse, session.agentVoiceId)
+                    this.synthesizeTTS(llmResponse, session.agentVoiceId, session)
                         .then(ttsAudio => {
                             if (ttsAudio) {
                                 this.sendAudioToClient(session, ttsAudio);
@@ -276,6 +304,14 @@ class DeepgramBrowserHandler {
             let text = response.text;
             console.log("🧠 Gemini response received:", text);
 
+            // Track Gemini token usage
+            if (response.usageMetadata) {
+                const totalTokens = (response.usageMetadata.promptTokenCount || 0) +
+                    (response.usageMetadata.candidatesTokenCount || 0);
+                session.usage.gemini += totalTokens;
+                console.log(`📊 Gemini tokens used: ${totalTokens} (Total: ${session.usage.gemini})`);
+            }
+
             // Check for Tool Call (JSON format)
             try {
                 // Remove potential markdown code blocks if present
@@ -325,7 +361,7 @@ class DeepgramBrowserHandler {
         }
     }
 
-    async synthesizeTTS(text, voiceId) {
+    async synthesizeTTS(text, voiceId, session = null) {
         try {
             console.log(`🔊 Generating TTS for: "${text.substring(0, 20)}..."`);
             const { generateTTS } = require('./tts_controller.js');
@@ -337,6 +373,22 @@ class DeepgramBrowserHandler {
                 skipConversion: true            // Sarvam (prevent ulaw conversion)
             });
             console.log(`✅ TTS generated: ${audioBuffer ? audioBuffer.length : 0} bytes`);
+
+            // Track TTS usage for billing
+            if (session && session.usage) {
+                const characterCount = text.length;
+                // Determine provider from voiceId (Sarvam voices typically have specific naming)
+                const isSarvam = voiceId && (voiceId.includes('sarvam') || voiceId.includes('anushka') || voiceId.includes('arvind'));
+
+                if (isSarvam) {
+                    session.usage.sarvam += characterCount;
+                    console.log(`📊 Sarvam TTS: ${characterCount} characters (Total: ${session.usage.sarvam})`);
+                } else {
+                    session.usage.elevenlabs += characterCount;
+                    console.log(`📊 ElevenLabs TTS: ${characterCount} characters (Total: ${session.usage.elevenlabs})`);
+                }
+            }
+
             return audioBuffer;
         } catch (err) {
             console.error("❌ TTS error details:", err.message);
@@ -416,6 +468,26 @@ class DeepgramBrowserHandler {
             );
 
             console.log(`✅ Call ended and logged: ${session.callId}, duration: ${duration}s`);
+
+            // Charge user for usage
+            if (session.userId && this.costCalculator) {
+                try {
+                    console.log('💰 Calculating call costs...', session.usage);
+                    const result = await this.costCalculator.recordAndCharge(
+                        session.userId,
+                        session.callId,
+                        session.usage
+                    );
+                    console.log(`✅ Charged user ${session.userId}: $${result.totalCharged.toFixed(4)}`);
+                    console.log('   Breakdown:', result.breakdown);
+                } catch (chargeError) {
+                    console.error('❌ Error charging user:', chargeError.message);
+                    // Log the failed charge but don't fail the call end
+                    if (chargeError.message === 'Insufficient balance') {
+                        console.warn(`⚠️ User ${session.userId} ended call with insufficient balance`);
+                    }
+                }
+            }
         } catch (err) {
             console.error('❌ Error logging call end:', err);
         }
