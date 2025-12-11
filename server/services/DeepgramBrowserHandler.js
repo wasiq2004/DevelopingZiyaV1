@@ -73,6 +73,7 @@ class DeepgramBrowserHandler {
             let agentPrompt = identity || "You are a helpful AI assistant.";
             let agentVoiceId = voiceId || "21m00Tcm4TlvDq8ikWAM"; // default
             let greetingMessage = "Hello! How can I help you today?";
+            let tools = [];
 
             if (agentId && userId) {
                 try {
@@ -81,9 +82,20 @@ class DeepgramBrowserHandler {
                     const agent = await agentService.getAgentById(userId, agentId);
                     if (agent) {
                         agentPrompt = agent.identity || agentPrompt;
+
+                        // Process Tools
+                        if (agent.settings && agent.settings.tools && agent.settings.tools.length > 0) {
+                            tools = agent.settings.tools;
+                            const toolDescriptions = tools.map(tool =>
+                                `- ${tool.name}: ${tool.description} (Parameters: ${tool.parameters?.map(p => `${p.name} (${p.type})${p.required ? ' [required]' : ''}`).join(', ') || 'None'})`
+                            ).join('\n');
+
+                            agentPrompt += `\n\nAvailable Tools:\n${toolDescriptions}\n\nWhen you need to collect information from the user, ask for the required parameters. When all required information is collected, respond with a JSON object in the format: {"tool": "tool_name", "data": {"param1": "value1", "param2": "value2"}}. Do NOT add any other text before or after the JSON.`;
+                        }
+
                         if (agent.voiceId) agentVoiceId = agent.voiceId;
                         if (agent.settings?.greetingLine) greetingMessage = agent.settings.greetingLine;
-                        console.log(`✅ Loaded agent details for ${agent.name}`);
+                        console.log(`✅ Loaded agent details for ${agent.name} with ${tools.length} tools`);
                     }
                 } catch (err) {
                     console.error("⚠️ Error loading agent details:", err);
@@ -91,6 +103,7 @@ class DeepgramBrowserHandler {
             }
 
             session = this.createSession(connectionId, agentPrompt, agentVoiceId, ws, userId, agentId);
+            session.tools = tools; // Store tools in session for later lookup
 
             // Log call start to database
             await this.logCallStart(session);
@@ -260,8 +273,51 @@ class DeepgramBrowserHandler {
                 contents: session.context,
                 config: { systemInstruction: session.agentPrompt },
             });
-            console.log("🧠 Gemini response received");
-            return response.text;
+            let text = response.text;
+            console.log("🧠 Gemini response received:", text);
+
+            // Check for Tool Call (JSON format)
+            try {
+                // Remove potential markdown code blocks if present
+                const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                if (cleanText.startsWith('{') && cleanText.endsWith('}')) {
+                    const parsed = JSON.parse(cleanText);
+
+                    if (parsed.tool && parsed.data) {
+                        console.log(`🛠️ Tool usage detected: ${parsed.tool}`);
+
+                        // Handle Google Sheets Tool
+                        if (parsed.tool.includes('Sheet') || parsed.tool === 'addToSheet' || parsed.tool === 'saveData') {
+                            const googleSheetsService = require('./googleSheetsService.js');
+
+                            // Find the tool definition to get the Spreadsheet ID
+                            let spreadsheetId;
+                            if (session.tools && session.tools.length > 0) {
+                                const tool = session.tools.find(t => t.name === parsed.tool);
+                                if (tool) spreadsheetId = googleSheetsService.extractSpreadsheetId(tool.webhookUrl); // In UI, URL is stored in webhookUrl
+                            }
+
+                            if (!spreadsheetId) {
+                                console.error('Spreadsheet URL not found in tool configuration');
+                                // Fallback? Maybe hardcode or error
+                            } else {
+                                await googleSheetsService.appendGenericRow(spreadsheetId, parsed.data);
+                            }
+
+                            // Add tool result to context and ask LLM for final response
+                            this.appendToContext(session, JSON.stringify({ tool: parsed.tool, status: "success", message: "Data saved successfully" }), "user"); // mimic user/system confirmation
+
+                            // Recursively call LLM to get the verbal response
+                            return await this.callLLM(session);
+                        }
+                    }
+                }
+            } catch (jsonError) {
+                // Not a valid JSON tool call, just regular text -> continue
+                // console.log("Response is not JSON tool call");
+            }
+
+            return text;
         } catch (err) {
             console.error("❌ LLM error details:", err.message);
             console.error(err.stack);
