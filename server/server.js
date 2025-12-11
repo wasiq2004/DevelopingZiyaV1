@@ -112,7 +112,7 @@ if (!process.env.ELEVEN_LABS_API_KEY) {
 }
 console.log("Twilio Basic Service initialized");
 // ================= CORS ==================
-const FRONTEND_URL = "https://ziyavoice.aspirentech.com";
+const FRONTEND_URL = "https://benevolent-custard-76836b.netlify.app";
 
 const corsOptions = {
   origin: [
@@ -760,6 +760,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // ==================== ADMIN PANEL ENDPOINTS ====================
+
+// TEPMORARY ENDPOINT TO CREATE ADMIN
 app.get('/api/create-admin-user', async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
@@ -807,6 +809,7 @@ app.get('/api/create-admin-user', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // Admin login
 app.post('/api/admin/login', async (req, res) => {
   try {
@@ -892,6 +895,84 @@ app.post('/api/admin/users/:userId/limits', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error setting service limit:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ==================== WALLET MANAGEMENT ENDPOINTS ====================
+
+// Add credits to user wallet (Admin only)
+app.post('/api/admin/wallet/add-credits', async (req, res) => {
+  try {
+    const { userId, amount, description, adminId } = req.body;
+
+    if (!userId || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID or amount' });
+    }
+
+    const result = await walletService.addCredits(userId, amount, description || 'Admin credit adjustment', adminId);
+
+    await adminService.logActivity(
+      adminId,
+      'add_credits',
+      userId,
+      `Added $${amount} credits: ${description}`,
+      req.ip
+    );
+
+    res.json({ success: true, newBalance: result.newBalance });
+  } catch (error) {
+    console.error('Error adding credits:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get user wallet balance
+app.get('/api/wallet/balance/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const balance = await walletService.getBalance(userId);
+    res.json({ success: true, balance });
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get wallet transactions
+app.get('/api/wallet/transactions/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const transactions = await walletService.getTransactions(userId, limit, offset);
+    res.json({ success: true, transactions });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get usage statistics
+app.get('/api/wallet/usage-stats/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const stats = await walletService.getUsageStats(userId);
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching usage stats:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get service pricing
+app.get('/api/wallet/pricing', async (req, res) => {
+  try {
+    const pricing = await walletService.getServicePricing();
+    res.json({ success: true, pricing });
+  } catch (error) {
+    console.error('Error fetching pricing:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
