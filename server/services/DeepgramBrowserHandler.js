@@ -119,6 +119,22 @@ class DeepgramBrowserHandler {
                 }
             }
 
+            // Check user balance before starting call
+            if (userId && this.walletService) {
+                const balanceCheck = await this.walletService.checkBalanceForCall(userId, 0.10);
+                if (!balanceCheck.allowed) {
+                    console.error(`❌ Insufficient balance for user ${userId}: ${balanceCheck.message}`);
+                    ws.send(JSON.stringify({
+                        event: 'error',
+                        message: balanceCheck.message,
+                        balance: balanceCheck.balance
+                    }));
+                    ws.close();
+                    return;
+                }
+                console.log(`✅ Balance check passed: $${balanceCheck.balance.toFixed(4)}`);
+            }
+
             session = this.createSession(connectionId, agentPrompt, agentVoiceId, ws, userId, agentId);
             session.tools = tools; // Store tools in session for later lookup
 
