@@ -30,9 +30,17 @@ const VoiceSyncService = require('./services/voiceSyncService.js');
 const VoiceWebSocketHandler = require('./services/voiceWebSocketHandler.js');
 const { router: voiceRouter, initVoiceSync } = require('./routes/voiceRoutes.js');
 
+// Google OAuth
+const passport = require('passport');
+const session = require('express-session');
+const { configureGoogleAuth } = require('./config/googleAuth.js');
+
 // Initialize wallet and cost services
 const walletService = new WalletService(mysqlPool);
 const costCalculator = new CostCalculator(mysqlPool, walletService);
+
+// Configure Google OAuth
+const passportInstance = configureGoogleAuth(mysqlPool);
 
 // Init server
 const app = express();
@@ -139,6 +147,53 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Initialize and mount voice routes
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
+
+// ==================== SESSION & GOOGLE OAUTH ====================
+
+// Session middleware (required for Passport)
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'ziya-voice-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Google OAuth Routes
+app.get('/api/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login?error=google_auth_failed' }),
+  (req, res) => {
+    // Successful authentication
+    const user = req.user;
+    console.log('✅ Google OAuth successful for:', user.email);
+
+    // Redirect to frontend with user data
+    const frontendUrl = process.env.FRONTEND_URL || 'https://ziyavoice-production.up.railway.app';
+    res.redirect(`${frontendUrl}/login?user=${encodeURIComponent(JSON.stringify(user))}`);
+  }
+);
+
+// Logout route
+app.post('/api/auth/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Logout failed' });
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
+  });
+});
+
+console.log('✅ Google OAuth routes configured');
 
 // Initialize and mount call routes
 const callRoutes = require('./routes/callRoutes.js');
