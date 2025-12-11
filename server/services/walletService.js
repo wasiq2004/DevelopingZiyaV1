@@ -98,39 +98,58 @@ class WalletService {
    * Deduct credits from wallet
    */
   async deductCredits(userId, amount, serviceType, description, callId = null, metadata = null) {
+    const connection = await this.mysqlPool.getConnection();
+
     try {
-      const wallet = await this.getOrCreateWallet(userId);
+      // Start transaction for atomic operation
+      await connection.beginTransaction();
+
+      // Lock the wallet row for update to prevent race conditions
+      const [wallets] = await connection.execute(
+        'SELECT * FROM user_wallets WHERE user_id = ? FOR UPDATE',
+        [userId]
+      );
+
+      if (wallets.length === 0) {
+        throw new Error('Wallet not found');
+      }
+
+      const wallet = wallets[0];
       const currentBalance = parseFloat(wallet.balance);
 
       if (currentBalance < amount) {
+        await connection.rollback();
         throw new Error('Insufficient balance');
       }
 
       const newBalance = currentBalance - parseFloat(amount);
 
       // Update wallet balance
-      await this.mysqlPool.execute(
+      await connection.execute(
         'UPDATE user_wallets SET balance = ?, updated_at = NOW() WHERE user_id = ?',
         [newBalance, userId]
       );
 
       // Record transaction
       const transactionId = uuidv4();
-      await this.mysqlPool.execute(
+      await connection.execute(
         `INSERT INTO wallet_transactions 
         (id, user_id, transaction_type, amount, balance_after, service_type, call_id, description, metadata) 
         VALUES (?, ?, 'debit', ?, ?, ?, ?, ?, ?)`,
         [
-          transactionId, 
-          userId, 
-          amount, 
-          newBalance, 
-          serviceType, 
-          callId, 
+          transactionId,
+          userId,
+          amount,
+          newBalance,
+          serviceType,
+          callId,
           description,
           metadata ? JSON.stringify(metadata) : null
         ]
       );
+
+      // Commit transaction
+      await connection.commit();
 
       return {
         success: true,
@@ -143,8 +162,13 @@ class WalletService {
         }
       };
     } catch (error) {
+      // Rollback on any error
+      await connection.rollback();
       console.error('Error deducting credits:', error);
       throw error;
+    } finally {
+      // Always release connection back to pool
+      connection.release();
     }
   }
 
@@ -233,49 +257,49 @@ class WalletService {
     }
   }
 
- /**
- * Get transaction history
- */
-async getTransactions(userId, limit = 50, offset = 0) {
-  try {
-    // Ensure limit and offset are safe integers
-    const limitInt = Math.max(1, Math.min(parseInt(limit) || 50, 1000)); // Cap at 1000
-    const offsetInt = Math.max(0, parseInt(offset) || 0);
-    
-    // Validate userId
-    if (!userId) {
-      throw new Error('User ID is required');
-    }
-    
-    // Use string interpolation for LIMIT/OFFSET to avoid MySQL2 bug
-    const [transactions] = await this.mysqlPool.execute(
-      `SELECT * FROM wallet_transactions 
+  /**
+  * Get transaction history
+  */
+  async getTransactions(userId, limit = 50, offset = 0) {
+    try {
+      // Ensure limit and offset are safe integers
+      const limitInt = Math.max(1, Math.min(parseInt(limit) || 50, 1000)); // Cap at 1000
+      const offsetInt = Math.max(0, parseInt(offset) || 0);
+
+      // Validate userId
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+
+      // Use string interpolation for LIMIT/OFFSET to avoid MySQL2 bug
+      const [transactions] = await this.mysqlPool.execute(
+        `SELECT * FROM wallet_transactions 
       WHERE user_id = ? 
       ORDER BY created_at DESC 
       LIMIT ${limitInt} OFFSET ${offsetInt}`,
-      [userId]  // Only userId as parameter
-    );
+        [userId]  // Only userId as parameter
+      );
 
-    return transactions.map(t => ({
-      id: t.id,
-      type: t.transaction_type,
-      amount: parseFloat(t.amount),
-      balanceAfter: parseFloat(t.balance_after),
-      service: t.service_type,
-      description: t.description,
-      createdAt: t.created_at
-    }));
-  } catch (error) {
-    console.error('Error getting transactions:', error);
-    throw error;
+      return transactions.map(t => ({
+        id: t.id,
+        type: t.transaction_type,
+        amount: parseFloat(t.amount),
+        balanceAfter: parseFloat(t.balance_after),
+        service: t.service_type,
+        description: t.description,
+        createdAt: t.created_at
+      }));
+    } catch (error) {
+      console.error('Error getting transactions:', error);
+      throw error;
+    }
   }
-}
-  
- //Get usage statistics
- 
-async getUsageStats(userId, startDate = null, endDate = null) {
-  try {
-    let query = `
+
+  //Get usage statistics
+
+  async getUsageStats(userId, startDate = null, endDate = null) {
+    try {
+      let query = `
       SELECT 
         service_type,
         SUM(units_used) as total_units,
@@ -284,40 +308,40 @@ async getUsageStats(userId, startDate = null, endDate = null) {
       FROM service_usage
       WHERE user_id = ?
     `;
-    
-    const params = [userId];
 
-    if (startDate) {
-      query += ' AND created_at >= ?';
-      params.push(startDate);
+      const params = [userId];
+
+      if (startDate) {
+        query += ' AND created_at >= ?';
+        params.push(startDate);
+      }
+
+      if (endDate) {
+        query += ' AND created_at <= ?';
+        params.push(endDate);
+      }
+
+      query += ' GROUP BY service_type';
+
+      const [stats] = await this.mysqlPool.execute(query, params);
+
+      return stats.map(s => ({
+        service: s.service_type,
+        totalUnits: parseFloat(s.total_units || 0),
+        totalCost: parseFloat(s.total_cost || 0),
+        usageCount: parseInt(s.usage_count || 0)
+      }));
+    } catch (error) {
+      console.error('Error getting usage stats:', error);
+      throw error;
     }
-
-    if (endDate) {
-      query += ' AND created_at <= ?';
-      params.push(endDate);
-    }
-
-    query += ' GROUP BY service_type';
-
-    const [stats] = await this.mysqlPool.execute(query, params);
-
-    return stats.map(s => ({
-      service: s.service_type,
-      totalUnits: parseFloat(s.total_units || 0),
-      totalCost: parseFloat(s.total_cost || 0),
-      usageCount: parseInt(s.usage_count || 0)
-    }));
-  } catch (error) {
-    console.error('Error getting usage stats:', error);
-    throw error;
   }
-}
 
   /**
    * Helper: Get unit type for service
    */
   getUnitType(serviceType) {
-     const units = {
+    const units = {
       'elevenlabs': 'characters',
       'deepgram': 'seconds',
       'gemini': 'tokens',
@@ -356,6 +380,39 @@ async getUsageStats(userId, startDate = null, endDate = null) {
     } catch (error) {
       console.error('Error checking balance:', error);
       return false;
+    }
+  }
+  /**
+   * Check if user has sufficient balance for a call
+   * Requires minimum balance to start a call (prevents immediate disconnection)
+   */
+  async checkBalanceForCall(userId, minimumRequired = 0.10) {
+    try {
+      const balance = await this.getBalance(userId);
+
+      if (balance < minimumRequired) {
+        return {
+          allowed: false,
+          balance: balance,
+          required: minimumRequired,
+          message: `Insufficient balance. You need at least $${minimumRequired.toFixed(2)} to start a call. Current balance: $${balance.toFixed(4)}`
+        };
+      }
+
+      return {
+        allowed: true,
+        balance: balance,
+        message: 'Sufficient balance'
+      };
+    } catch (error) {
+      console.error('Error checking balance for call:', error);
+      // On error, deny the call for safety
+      return {
+        allowed: false,
+        balance: 0,
+        required: minimumRequired,
+        message: 'Error checking balance'
+      };
     }
   }
 }
