@@ -133,6 +133,11 @@ app.set('mysqlPool', mysqlPool); // Make pool available to routes
 app.use('/api/calls', callRoutes);
 console.log('✅ Call API routes mounted at /api/calls');
 
+// Initialize and mount document routes
+const documentRoutes = require('./routes/documentRoutes.js')(mysqlPool);
+app.use('/api/documents', documentRoutes);
+console.log('✅ Document API routes mounted at /api/documents');
+
 // Trigger initial voice sync
 voiceSyncService.syncAllProviders()
   .then(result => {
