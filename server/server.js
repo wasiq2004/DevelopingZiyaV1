@@ -150,9 +150,26 @@ console.log('✅ Voice API routes mounted at /api/voices');
 
 // ==================== SESSION & GOOGLE OAUTH ====================
 
+const MySQLStore = require('express-mysql-session')(session);
+const sessionStore = new MySQLStore({
+  clearExpired: true,
+  checkExpirationInterval: 900000, // 15 minutes
+  expiration: 86400000, // 24 hours
+  createDatabaseTable: true,
+  schema: {
+    tableName: 'sessions',
+    columnNames: {
+      session_id: 'session_id',
+      expires: 'expires',
+      data: 'data'
+    }
+  }
+}, mysqlPool);
+
 // Session middleware (required for Passport)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'ziya-voice-secret-key-change-in-production',
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
