@@ -18,14 +18,14 @@ class CampaignService {
     /**
      * Create a new campaign
      */
-    async createCampaign(userId, agentId, name, description = '') {
+    async createCampaign(userId, agentId, name, description = '', phoneNumberId = null) {
         try {
             const campaignId = uuidv4();
 
             await this.mysqlPool.execute(
-                `INSERT INTO campaigns (id, user_id, agent_id, name, description, status)
-         VALUES (?, ?, ?, ?, ?, 'draft')`,
-                [campaignId, userId, agentId, name, description]
+                `INSERT INTO campaigns (id, user_id, agent_id, phone_number_id, name, description, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft')`,
+                [campaignId, userId, agentId, phoneNumberId, name, description]
             );
 
             // Create default settings
