@@ -124,7 +124,7 @@ if (!process.env.ELEVEN_LABS_API_KEY) {
 }
 console.log("Twilio Basic Service initialized");
 // ================= CORS ==================
-const FRONTEND_URL = "https://ziyavoice.netlify.app";
+const FRONTEND_URL = "https://benevolent-custard-76836b.netlify.app";
 
 const corsOptions = {
   origin: [
@@ -148,8 +148,10 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/voices', initVoiceSync(mysqlPool));
 console.log('✅ Voice API routes mounted at /api/voices');
 
+
 // ==================== SESSION & GOOGLE OAUTH ====================
 
+// MySQL Session Store (production-ready)
 const MySQLStore = require('express-mysql-session')(session);
 const sessionStore = new MySQLStore({
   clearExpired: true,
@@ -2640,13 +2642,20 @@ app.get('/api/campaigns/:id', async (req, res) => {
 // Create a new campaign
 app.post('/api/campaigns', async (req, res) => {
   try {
-    const { userId, name } = req.body;
-    if (!userId || !name) {
-      return res.status(400).json({ success: false, message: 'User ID and campaign name are required' });
+    const { userId, agentId, name, description, contacts } = req.body;
+    if (!userId || !agentId || !name) {
+      return res.status(400).json({ success: false, message: 'User ID, agent ID, and campaign name are required' });
     }
 
-    const newCampaign = await campaignService.createCampaign(userId, name);
-    res.json({ success: true, data: newCampaign });
+    // Create the campaign
+    const result = await campaignService.createCampaign(userId, agentId, name, description || '');
+
+    // Add contacts if provided
+    if (contacts && contacts.length > 0) {
+      await campaignService.addContacts(result.campaignId, contacts);
+    }
+
+    res.json({ success: true, campaignId: result.campaignId });
   } catch (error) {
     console.error('Error creating campaign:', error);
     res.status(500).json({ success: false, message: error.message });
