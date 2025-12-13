@@ -18,7 +18,7 @@ class CampaignService {
     /**
      * Create a new campaign
      */
-    async createCampaign(userId, agentId, name, description = '', phoneNumberId = null) {
+    async createCampaign(userId, agentId = null, name, description = '', phoneNumberId = null) {
         try {
             const campaignId = uuidv4();
 
