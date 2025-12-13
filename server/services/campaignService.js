@@ -345,9 +345,16 @@ class CampaignService {
             [campaignId]
         );
 
+        // Map database fields to frontend-expected fields
+        const mappedRecords = records.map(record => ({
+            ...record,
+            phone: record.phone_number,  // Map phone_number to phone
+            callStatus: record.status     // Map status to callStatus
+        }));
+
         return {
             campaign,
-            records
+            records: mappedRecords
         };
     }
 
@@ -532,6 +539,34 @@ class CampaignService {
             return this.getCampaign(campaignId);
         } catch (error) {
             console.error('Error setting caller phone:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete a campaign
+     */
+    async deleteCampaign(campaignId, userId) {
+        try {
+            // Verify campaign belongs to user before deleting
+            const [campaigns] = await this.mysqlPool.execute(
+                'SELECT id FROM campaigns WHERE id = ? AND user_id = ?',
+                [campaignId, userId]
+            );
+
+            if (campaigns.length === 0) {
+                throw new Error('Campaign not found or access denied');
+            }
+
+            // Delete campaign (cascade will handle contacts and settings)
+            await this.mysqlPool.execute(
+                'DELETE FROM campaigns WHERE id = ? AND user_id = ?',
+                [campaignId, userId]
+            );
+
+            return { success: true, message: 'Campaign deleted successfully' };
+        } catch (error) {
+            console.error('Error deleting campaign:', error);
             throw error;
         }
     }
