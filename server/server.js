@@ -3506,42 +3506,58 @@ app.post('/api/campaigns/:id/start', async (req, res) => {
     }
 
     // Get campaign details
-    const campaign = await campaignService.getCampaign(id, userId);
+    const campaign = await campaignService.getCampaign(id);
 
     if (!campaign) {
       return res.status(404).json({ success: false, message: 'Campaign not found' });
     }
 
-    if (!campaign.callerPhone) {
+    // Verify campaign belongs to user
+    if (campaign.user_id !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    // Check if phone number is set
+    if (!campaign.phone_number_id) {
       return res.status(400).json({
         success: false,
         message: 'Please set a caller phone number before starting the campaign'
       });
     }
 
-    if (!campaign.agentId) {
+    // Check if agent is set
+    if (!campaign.agent_id) {
       return res.status(400).json({
         success: false,
         message: 'Please select an agent for this campaign'
       });
     }
 
-    // Update campaign status to running
-    await campaignService.startCampaign(id, userId);
-
-    // Get all pending records
-    const [records] = await mysqlPool.execute(
-      'SELECT id, phone FROM campaign_records WHERE campaign_id = ? AND call_status = ?',
+    // Get all pending contacts
+    const [contacts] = await mysqlPool.execute(
+      'SELECT * FROM campaign_contacts WHERE campaign_id = ? AND status = ?',
       [id, 'pending']
     );
 
-    // Start making calls asynchronously
-    processCampaignCalls(id, userId, campaign, records);
+    if (contacts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending contacts found. Please add contacts to the campaign.'
+      });
+    }
+
+    // Update campaign status to running
+    await campaignService.startCampaign(id, userId);
+
+    // Start processing campaign in background
+    campaignService.processCampaign(id, userId).catch(err => {
+      console.error('Error processing campaign:', err);
+    });
 
     res.json({
       success: true,
-      data: await campaignService.getCampaign(id, userId),
-      message: `Campaign started. Calling ${records.length} numbers...`
+      data: await campaignService.getCampaign(id),
+      message: `Campaign started. Calling ${contacts.length} contacts...`
     });
 
   } catch (error) {
