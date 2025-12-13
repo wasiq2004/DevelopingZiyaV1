@@ -319,6 +319,39 @@ class CampaignService {
     }
 
     /**
+     * Get campaign details with contact records
+     */
+    async getCampaignWithRecords(campaignId, userId) {
+        // Get campaign details
+        const [campaigns] = await this.mysqlPool.execute(
+            `SELECT c.*, a.name as agent_name
+       FROM campaigns c
+       LEFT JOIN agents a ON c.agent_id = a.id
+       WHERE c.id = ? AND c.user_id = ?`,
+            [campaignId, userId]
+        );
+
+        if (campaigns.length === 0) {
+            return null;
+        }
+
+        const campaign = campaigns[0];
+
+        // Get campaign contacts/records
+        const [records] = await this.mysqlPool.execute(
+            `SELECT * FROM campaign_contacts 
+       WHERE campaign_id = ?
+       ORDER BY created_at DESC`,
+            [campaignId]
+        );
+
+        return {
+            campaign,
+            records
+        };
+    }
+
+    /**
      * Get all campaigns for a user
      */
     async getUserCampaigns(userId) {
