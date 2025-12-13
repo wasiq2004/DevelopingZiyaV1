@@ -22,11 +22,11 @@ class CampaignService {
         try {
             const campaignId = uuidv4();
 
-            // Insert campaign without phone_number_id for now (can be set later via setCallerPhone)
+            // Insert campaign with only existing columns
             await this.mysqlPool.execute(
-                `INSERT INTO campaigns (id, user_id, agent_id, name, description, status)
-         VALUES (?, ?, ?, ?, ?, 'draft')`,
-                [campaignId, userId, agentId, name, description]
+                `INSERT INTO campaigns (id, user_id, agent_id, name, status)
+         VALUES (?, ?, ?, ?, 'draft')`,
+                [campaignId, userId, agentId, name]
             );
 
             // Create default settings
