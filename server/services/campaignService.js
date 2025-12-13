@@ -381,6 +381,18 @@ class CampaignService {
             );
         }
     }
+     async setCallerPhone(campaignId, userId, phoneNumberId, agentId) {
+        try {
+            await this.mysqlPool.execute(
+                `UPDATE campaigns SET phone_number_id = ?, agent_id = ? WHERE id = ? AND user_id = ?`,
+                [phoneNumberId, agentId, campaignId, userId]
+            );
+            return this.getCampaign(campaignId);
+        } catch (error) {
+            console.error('Error setting caller phone:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = CampaignService;
