@@ -306,7 +306,7 @@ class CampaignService {
         const [campaigns] = await this.mysqlPool.execute(
             `SELECT c.*, a.name as agent_name
        FROM campaigns c
-       JOIN agents a ON c.agent_id = a.id
+       LEFT JOIN agents a ON c.agent_id = a.id
        WHERE c.id = ?`,
             [campaignId]
         );
@@ -325,7 +325,7 @@ class CampaignService {
         const [campaigns] = await this.mysqlPool.execute(
             `SELECT c.*, a.name as agent_name
        FROM campaigns c
-       JOIN agents a ON c.agent_id = a.id
+       LEFT JOIN agents a ON c.agent_id = a.id
        WHERE c.user_id = ?
        ORDER BY c.created_at DESC`,
             [userId]
@@ -363,15 +363,20 @@ class CampaignService {
             [status, callDuration, callCost, contactId]
         );
 
-        // Update campaign stats
+        // Get contact and campaign details for Google Sheets logging
         const [contacts] = await this.mysqlPool.execute(
-            'SELECT campaign_id FROM campaign_contacts WHERE id = ?',
+            `SELECT cc.*, c.name as campaign_name, c.user_id, c.agent_id 
+             FROM campaign_contacts cc
+             JOIN campaigns c ON cc.campaign_id = c.id
+             WHERE cc.id = ?`,
             [contactId]
         );
 
         if (contacts.length > 0) {
-            const campaignId = contacts[0].campaign_id;
+            const contact = contacts[0];
+            const campaignId = contact.campaign_id;
 
+            // Update campaign stats
             await this.mysqlPool.execute(
                 `UPDATE campaigns SET 
          completed_calls = completed_calls + 1,
@@ -380,6 +385,106 @@ class CampaignService {
          WHERE id = ?`,
                 [status, callCost, campaignId]
             );
+
+            // Log to Google Sheets if configured
+            try {
+                await this.logToGoogleSheets(contact, callDuration, callCost, status);
+            } catch (error) {
+                console.error('Failed to log to Google Sheets:', error.message);
+                // Don't fail the whole operation if Google Sheets logging fails
+            }
+        }
+    }
+
+    /**
+     * Log call data to Google Sheets
+     */
+    async logToGoogleSheets(contact, callDuration, callCost, status) {
+        try {
+            // Get agent settings to find Google Sheets URL
+            const [agents] = await this.mysqlPool.execute(
+                'SELECT settings FROM agents WHERE id = ?',
+                [contact.agent_id]
+            );
+
+            if (agents.length === 0) {
+                console.log('No agent found for Google Sheets logging');
+                return;
+            }
+
+            const agentSettings = typeof agents[0].settings === 'string'
+                ? JSON.parse(agents[0].settings)
+                : agents[0].settings;
+
+            const googleSheetsUrl = agentSettings?.googleSheetsUrl || agentSettings?.google_sheets_url;
+
+            if (!googleSheetsUrl) {
+                console.log('No Google Sheets URL configured for this agent');
+                return;
+            }
+
+            // Extract spreadsheet ID from URL
+            const spreadsheetIdMatch = googleSheetsUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (!spreadsheetIdMatch) {
+                console.error('Invalid Google Sheets URL format');
+                return;
+            }
+
+            const spreadsheetId = spreadsheetIdMatch[1];
+
+            // Prepare data row
+            const timestamp = new Date().toISOString();
+            const rowData = [
+                timestamp,
+                contact.campaign_name || 'N/A',
+                contact.name || 'Unknown',
+                contact.phone_number,
+                status,
+                callDuration || 0,
+                callCost || 0,
+                contact.metadata ? JSON.stringify(contact.metadata) : ''
+            ];
+
+            // Use Google Sheets API with credentials from environment
+            const { google } = require('googleapis');
+
+            let auth;
+            if (process.env.GOOGLE_CREDENTIALS_BASE64) {
+                // Railway/Production: Use base64 encoded credentials
+                const credentials = JSON.parse(
+                    Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8')
+                );
+                auth = new google.auth.GoogleAuth({
+                    credentials: credentials,
+                    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+                });
+            } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+                // Local: Use credentials file
+                auth = new google.auth.GoogleAuth({
+                    keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+                    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+                });
+            } else {
+                console.error('No Google credentials configured');
+                return;
+            }
+
+            const sheets = google.sheets({ version: 'v4', auth });
+
+            // Append row to sheet
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: spreadsheetId,
+                range: 'Sheet1!A:H', // Adjust sheet name if needed
+                valueInputOption: 'USER_ENTERED',
+                resource: {
+                    values: [rowData]
+                }
+            });
+
+            console.log(`✅ Logged call to Google Sheets: ${contact.phone_number}`);
+        } catch (error) {
+            console.error('Error logging to Google Sheets:', error.message);
+            throw error;
         }
     }
     /**
