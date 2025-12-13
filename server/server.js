@@ -2643,12 +2643,12 @@ app.get('/api/campaigns/:id', async (req, res) => {
 app.post('/api/campaigns', async (req, res) => {
   try {
     const { userId, agentId, phoneNumberId, name, description, contacts } = req.body;
-    if (!userId || !agentId || !name) {
-      return res.status(400).json({ success: false, message: 'User ID, agent ID, and campaign name are required' });
+    if (!userId || !name) {
+      return res.status(400).json({ success: false, message: 'User ID and campaign name are required' });
     }
 
-    // Create the campaign
-    const result = await campaignService.createCampaign(userId, agentId, name, description || '', phoneNumberId);
+    // Create the campaign (agentId and phoneNumberId can be null)
+    const result = await campaignService.createCampaign(userId, agentId || null, name, description || '', phoneNumberId || null);
 
     // Add contacts if provided
     if (contacts && contacts.length > 0) {
@@ -2695,6 +2695,7 @@ app.delete('/api/campaigns/:id', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // Set caller phone for a campaign
 app.post('/api/campaigns/:id/set-caller-phone', async (req, res) => {
   try {
@@ -2703,6 +2704,7 @@ app.post('/api/campaigns/:id/set-caller-phone', async (req, res) => {
     if (!userId || !callerPhone) {
       return res.status(400).json({ success: false, message: 'User ID and caller phone (ID) are required' });
     }
+
     // callerPhone is passed as phoneNumberId
     const updatedCampaign = await campaignService.setCallerPhone(id, userId, callerPhone, agentId);
     res.json({ success: true, campaign: updatedCampaign });
@@ -2711,6 +2713,7 @@ app.post('/api/campaigns/:id/set-caller-phone', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // Import records (CSV)
 app.post('/api/campaigns/:id/import', async (req, res) => {
   try {
@@ -2727,6 +2730,7 @@ app.post('/api/campaigns/:id/import', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // Add single record
 app.post('/api/campaigns/:id/records', async (req, res) => {
   try {
@@ -2743,6 +2747,7 @@ app.post('/api/campaigns/:id/records', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 // Add phone numbers to a campaign
 app.post('/api/campaigns/:id/phone-numbers', async (req, res) => {
   try {
