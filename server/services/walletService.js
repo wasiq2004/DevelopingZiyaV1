@@ -20,6 +20,16 @@ class WalletService {
         return wallets[0];
       }
 
+      // Verify user exists before creating wallet
+      const [users] = await this.mysqlPool.execute(
+        'SELECT id FROM users WHERE id = ?',
+        [userId]
+      );
+
+      if (users.length === 0) {
+        throw new Error(`User not found: ${userId}`);
+      }
+
       // Create new wallet with initial balance (optional)
       const walletId = uuidv4();
       const initialBalance = 0.00;
