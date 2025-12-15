@@ -212,7 +212,7 @@ class CostCalculator {
             await this.walletService.deductCredits(
                 userId,
                 costBreakdown.totalCost,
-                'call',
+                null, // Set to NULL to avoid truncation - service_type column might be ENUM or very small
                 description,
                 validCallId, // Use validated call_id
                 { breakdown: costBreakdown.breakdown }
