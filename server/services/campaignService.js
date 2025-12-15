@@ -241,8 +241,8 @@ class CampaignService {
             await this.mysqlPool.execute(
                 `INSERT INTO calls (
                     id, user_id, agent_id, call_sid, from_number, to_number, 
-                    status, call_type, started_at, timestamp, campaign_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)`,
+                    status, call_type, started_at, campaign_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
                 [
                     callId,
                     campaign.user_id,
