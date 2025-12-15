@@ -82,21 +82,30 @@ class CampaignService {
      */
     async startCampaign(campaignId, userId) {
         try {
+            // Check if campaign is already running
+            if (this.activeCampaigns.has(campaignId)) {
+                throw new Error('Campaign is already running');
+            }
+
             // Check if user has sufficient balance
             const balanceCheck = await this.walletService.checkBalanceForCall(userId, 1.00);
             if (!balanceCheck.allowed) {
                 throw new Error('Insufficient balance to start campaign. Minimum $1.00 required.');
             }
 
-            // Update campaign status
-            await this.mysqlPool.execute(
+            // Update campaign status (only if not already running)
+            const [result] = await this.mysqlPool.execute(
                 `UPDATE campaigns SET status = 'running', started_at = NOW()
-         WHERE id = ? AND status = 'draft'`,
+         WHERE id = ? AND status IN ('draft', 'paused')`,
                 [campaignId]
             );
 
-            // Start processing calls
-            this.processCampaign(campaignId, userId);
+            if (result.affectedRows === 0) {
+                throw new Error('Campaign is already running or does not exist');
+            }
+
+            // Mark as active in memory (processCampaign will be called from server.js)
+            this.activeCampaigns.set(campaignId, { status: 'running' });
 
             return { success: true, message: 'Campaign started' };
         } catch (error) {
