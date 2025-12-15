@@ -242,7 +242,7 @@ class CampaignService {
                 `INSERT INTO calls (
                     id, user_id, agent_id, call_sid, from_number, to_number, 
                     status, call_type, started_at, campaign_id, phone_number_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
                 [
                     callId,
                     campaign.user_id,
@@ -252,7 +252,8 @@ class CampaignService {
                     contact.phone_number,
                     'initiated',  // Initial status
                     'twilio_outbound',   // Must match ENUM: 'twilio_inbound', 'twilio_outbound', 'web_call'
-                    campaignId
+                    campaignId,
+                    campaign.phone_number_id || null  // Use campaign's phone_number_id
                 ]
             );
 
