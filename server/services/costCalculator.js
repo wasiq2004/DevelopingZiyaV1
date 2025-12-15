@@ -164,6 +164,24 @@ class CostCalculator {
                 throw new Error('Insufficient balance');
             }
 
+            // Verify call exists if call_id is provided
+            let validCallId = callId;
+            if (callId) {
+                try {
+                    const [calls] = await this.mysqlPool.execute(
+                        'SELECT id FROM calls WHERE id = ?',
+                        [callId]
+                    );
+                    if (calls.length === 0) {
+                        console.warn(`⚠️ Call ${callId} not found in database. Recording usage without call reference.`);
+                        validCallId = null; // Set to NULL if call doesn't exist
+                    }
+                } catch (err) {
+                    console.error('Error checking call existence:', err);
+                    validCallId = null; // Fallback to NULL on error
+                }
+            }
+
             // Record each service usage
             const usageRecords = [];
             for (const [service, data] of Object.entries(costBreakdown.breakdown)) {
@@ -175,25 +193,28 @@ class CostCalculator {
                     [
                         usageId,
                         userId,
-                        callId,
+                        validCallId, // Use validated call_id (may be NULL)
                         service,
                         data.units,
                         this.pricingCache.get(service).costPerUnit,
                         data.cost,
-                        JSON.stringify({ timestamp: new Date().toISOString() })
+                        JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            originalCallId: callId // Keep original for reference
+                        })
                     ]
                 );
                 usageRecords.push({ service, ...data });
             }
 
             // Deduct total cost from wallet
-            const description = `Call ${callId.substring(0, 8)} - ${Object.keys(costBreakdown.breakdown).join(', ')}`;
+            const description = `Call ${callId ? callId.substring(0, 8) : 'N/A'} - ${Object.keys(costBreakdown.breakdown).join(', ')}`;
             await this.walletService.deductCredits(
                 userId,
                 costBreakdown.totalCost,
                 'call_usage',
                 description,
-                callId,
+                validCallId, // Use validated call_id
                 { breakdown: costBreakdown.breakdown }
             );
 
