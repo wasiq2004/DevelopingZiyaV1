@@ -212,7 +212,7 @@ class CostCalculator {
             await this.walletService.deductCredits(
                 userId,
                 costBreakdown.totalCost,
-                'call_usage',
+                'call',
                 description,
                 validCallId, // Use validated call_id
                 { breakdown: costBreakdown.breakdown }
